@@ -11,6 +11,7 @@
 #include <inttypes.h>
 #include "mojodispatch.h"
 #include "mojocallbacks.h"
+#include "mojoresponses.h"
 
 
       
@@ -26,12 +27,15 @@ class Mojo
     Message *getMessage();
     
     void setAddress(char address);
-    void loadAddress();
+    void loadAddressEEPROM();
     char getAddress();
     
     void setBaudrate(char index);
     void loadBaudrate();
     long getBaudrate();
+    
+    void loadBaudrateEEPROM();
+    void saveBaudrateEEPROM();
     
     void readyForNext();
     void run();
@@ -54,6 +58,7 @@ class Mojo
     char *current;
     char *last;
     unsigned char addy;
+    char baudIndex;
     uint8_t bufferIndex;
     uint8_t bufferLength;
    

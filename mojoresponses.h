@@ -3,5 +3,5 @@
 
 const char BADCMD[] = "?BADCMD";
 const char BADPARAM[] = "?BADPARAM";
-
+const char DONERESP[] = "DONE";
 #endif

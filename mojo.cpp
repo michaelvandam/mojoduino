@@ -51,7 +51,7 @@ void Mojo::setAddress(char address) {
     eeprom_write_byte((unsigned char *)ADDRADDR, address);
 }
 
-void Mojo::loadAddress() {
+void Mojo::loadAddressEEPROM() {
   char c;
   c = eeprom_read_byte((unsigned char *)ADDRADDR);
   setAddress(c);  
@@ -168,7 +168,7 @@ void Mojo::run() {
 }
 
 void Mojo::setBaudrate(char index){
-    eeprom_write_byte((unsigned char *) BAUDADDR, index);
+    baudIndex  = index;
     loadBaudrate();
 }
 
@@ -176,15 +176,22 @@ void Mojo::loadBaudrate(){
   serial->begin(getBaudrate());
 }
 
+void Mojo::loadBaudrateEEPROM(){
+  baudIndex =  eeprom_read_byte((unsigned char *)BAUDADDR);
+  loadBaudrate();
+}
+
+void Mojo::saveBaudrateEEPROM() {
+  eeprom_write_byte((unsigned char *) BAUDADDR, baudIndex);
+}
+
 long Mojo::getBaudrate(){
-  char index; 
-  index = eeprom_read_byte((unsigned char *)BAUDADDR);
   
-  if (index > BAUDRATELEN || index < 0) {  //Default to 9600
-    index = 2;
-    setBaudrate(index);
+  if (baudIndex > BAUDRATELEN || baudIndex < 0) {  //Default to 9600
+    baudIndex = 2;
+    setBaudrate(baudIndex);
   }
-  return baudRates[index];
+  return baudRates[baudIndex];
 }
 
 
