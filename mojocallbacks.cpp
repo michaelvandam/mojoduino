@@ -5,7 +5,7 @@
 #include "mojoresponses.h"
 #include <string.h>
 #include <ctype.h>
-
+#include <stdlib.h>
 
 void id( Command &cmd ) {
   char *newId;
@@ -24,14 +24,40 @@ void id( Command &cmd ) {
 }
 
 void baud( Command &cmd ) {
-  Serial.println("Set Baud");
-  cmd.setReply(cmd.getParam());
+  long baudSelect;
+  char *param;
+  int i=0;
+  
+  param = cmd.getParam();
+  
+  if (strlen(param)==0) {
+    cmd.setReply(mojo.getBaudrate());
+    return;
+  }
+  
+  baudSelect = atol(param);
+  
+  while(i < BAUDRATELEN) {
+    if(baudSelect==baudRates[i]) {
+      break;
+    }
+    i++;
+  }
+  
+  
+  if (i == BAUDRATELEN) {
+    cmd.setReply(BADPARAM);  
+  } else {
+    Serial.println(baudRates[i]);
+    mojo.setBaudrate(i);
+    cmd.setReply(param);
+  }  
 }
 
+
 void savebaud( Command &cmd ) {
-  Serial.println("Save Baud");
   //Put baud into EEPROM
-  cmd.setReply(cmd.getParam());
+  cmd.setReply("NOTIMP");
 }
 
 void who( Command &cmd ) {

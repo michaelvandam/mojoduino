@@ -1,7 +1,7 @@
 #ifndef Mojodefs_h
 #define Mojodefs_h
 
-
+#include <inttypes.h>
 
 //Mojo Limits
 #define MAXMSGSIZE 128
@@ -28,6 +28,10 @@ const char ADDSEP2[] = ",";
 const char PARAMSEP[] = "=";
 const char BROADCASTADDY = '0';
 const char RESPCHAR[] = "*";
-const char ADDRADDR = 0;
 
+const int ADDRADDR = 0;
+const int BAUDADDR = 1;
+
+const long baudRates [] =  {2400, 4800, 9600, 19200, 31250, 38400, 57600, 115200, 0};
+const char BAUDRATELEN = 9;
 #endif

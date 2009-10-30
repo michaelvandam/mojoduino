@@ -17,6 +17,7 @@ class Command
         char *getReply();
         void setReply(const char *replyStr);
         void setReply(char c);
+        void setReply(long c);
         
         void clear();
         

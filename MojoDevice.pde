@@ -1,8 +1,4 @@
-//#include <EEPROM.h>  // <-- Doesn't work with this commented out
-
 #include "mojo.h"
-#include "mojodispatch.h"
-#include "mojocallbacks.h"
 
 void Hello( Command &cmd ) {
   Serial.println("Hello, World!");
@@ -11,9 +7,10 @@ void Hello( Command &cmd ) {
 
 void setup()
 {
-  Serial.begin(9600);
+  //Serial.begin(9600);
   mojo.setSerial(Serial);
-  mojo.setAddress('a');
+  mojo.loadBaudrate();
+  mojo.loadAddress();
   addCallback("HELLO", Hello);
   setupDefaultCallbacks();
 }
