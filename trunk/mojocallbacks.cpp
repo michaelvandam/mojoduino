@@ -57,7 +57,8 @@ void baud( Command &cmd ) {
 
 void savebaud( Command &cmd ) {
   //Put baud into EEPROM
-  cmd.setReply("NOTIMP");
+  mojo.saveBaudrateEEPROM();
+  cmd.setReply(DONERESP);
 }
 
 void who( Command &cmd ) {
