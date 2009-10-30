@@ -2,6 +2,7 @@
 #include "mojo.h"
 #include "mojodefs.h"
 #include <inttypes.h>
+
 /***********************************************
  * COMMAND METHODS
  ***********************************************/
@@ -52,7 +53,11 @@ void Command::setReply(char c) {
   reply[1] = '\0';
 }
 
-
+void Command::setReply(long c) {
+  char buf[10];
+  ltoa(c, buf,10);
+  strcpy(reply,buf);
+}
 
 
 /***********************************************

@@ -9,6 +9,8 @@
 #include "mojodefs.h"
 #include "mojomsg.h"
 #include <inttypes.h>
+#include "mojodispatch.h"
+#include "mojocallbacks.h"
 
 
       
@@ -22,9 +24,15 @@ class Mojo
     void recieve();
     uint8_t messageReady();
     Message *getMessage();
+    
     void setAddress(char address);
     void loadAddress();
     char getAddress();
+    
+    void setBaudrate(char index);
+    void loadBaudrate();
+    long getBaudrate();
+    
     void readyForNext();
     void run();
     void dispatch();
@@ -45,7 +53,7 @@ class Mojo
     char msgBuffer[MAXMSGSIZE];
     char *current;
     char *last;
-    char addy;
+    unsigned char addy;
     uint8_t bufferIndex;
     uint8_t bufferLength;
    

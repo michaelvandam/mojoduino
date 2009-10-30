@@ -8,7 +8,7 @@ extern "C" {
     #include <stdlib.h>
 }
 
-#include <EEPROM.h>
+#include <avr/eeprom.h>
 #include "WProgram.h"
 #include "HardwareSerial.h"
 #include "mojo.h"
@@ -25,6 +25,7 @@ Mojo::Mojo() {
     init();
     setSerial(Serial);
     setAddress('a');
+    loadBaudrate();
 }
 
 Mojo::Mojo(HardwareSerial &S, char address) {
@@ -32,6 +33,7 @@ Mojo::Mojo(HardwareSerial &S, char address) {
     init();
     setSerial(S);
     setAddress(address);
+    loadBaudrate();
 }
 
 void Mojo::setSerial(HardwareSerial &S) {
@@ -46,12 +48,12 @@ void Mojo::init() {
 
 void Mojo::setAddress(char address) {
     addy=address;
-    EEPROM.write(ADDRADDR, address);
+    eeprom_write_byte((unsigned char *)ADDRADDR, address);
 }
 
 void Mojo::loadAddress() {
   char c;
-  c = EEPROM.read(ADDRADDR);
+  c = eeprom_read_byte((unsigned char *)ADDRADDR);
   setAddress(c);  
 }
 
@@ -164,5 +166,26 @@ void Mojo::run() {
     readyForNext();
  }
 }
+
+void Mojo::setBaudrate(char index){
+    eeprom_write_byte((unsigned char *) BAUDADDR, index);
+    loadBaudrate();
+}
+
+void Mojo::loadBaudrate(){
+  serial->begin(getBaudrate());
+}
+
+long Mojo::getBaudrate(){
+  char index; 
+  index = eeprom_read_byte((unsigned char *)BAUDADDR);
+  
+  if (index > BAUDRATELEN || index < 0) {  //Default to 9600
+    index = 2;
+    setBaudrate(index);
+  }
+  return baudRates[index];
+}
+
 
 Mojo mojo;
