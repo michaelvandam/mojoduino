@@ -1,3 +1,4 @@
+
 /*
 mojo.cpp - Library for MojoBus communication.
 Created by Henry Herman, October 18, 2009.
@@ -7,12 +8,13 @@ extern "C" {
     #include <stdlib.h>
 }
 
-
+#include <EEPROM.h>
 #include "WProgram.h"
 #include "HardwareSerial.h"
 #include "mojo.h"
 #include "mojodispatch.h"
 #include "mojomsg.h"
+#include "mojodefs.h"
 #include <inttypes.h>
 #include <string.h>
 
@@ -44,6 +46,13 @@ void Mojo::init() {
 
 void Mojo::setAddress(char address) {
     addy=address;
+    EEPROM.write(ADDRADDR, address);
+}
+
+void Mojo::loadAddress() {
+  char c;
+  c = EEPROM.read(ADDRADDR);
+  setAddress(c);  
 }
 
 char Mojo::getAddress() {

@@ -1,3 +1,5 @@
+//#include <EEPROM.h>  // <-- Doesn't work with this commented out
+
 #include "mojo.h"
 #include "mojodispatch.h"
 #include "mojocallbacks.h"

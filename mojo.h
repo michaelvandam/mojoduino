@@ -11,9 +11,6 @@
 #include <inttypes.h>
 
 
-
-      
-
       
 class Mojo
 {
@@ -26,6 +23,7 @@ class Mojo
     uint8_t messageReady();
     Message *getMessage();
     void setAddress(char address);
+    void loadAddress();
     char getAddress();
     void readyForNext();
     void run();
