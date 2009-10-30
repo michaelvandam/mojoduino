@@ -28,8 +28,6 @@ const char ADDSEP2[] = ",";
 const char PARAMSEP[] = "=";
 const char BROADCASTADDY = '0';
 const char RESPCHAR[] = "*";
-
-//#define ADDR_EEPROM 0x0000
-
+const char ADDRADDR = 0;
 
 #endif
