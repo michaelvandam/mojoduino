@@ -1,7 +1,6 @@
 #include <FiniteStateMachine.h>
 #include <mojo.h>
 
-int ledPin = 13;
 
 /*
 * RDM Parameters
@@ -128,7 +127,6 @@ void setup()
   setupDefaultCallbacks(); 
   
   /*** ADDITIONAL RDM SETUP CODE ***/
-  pinMode(ledPin,OUTPUT);
 }
 
 void loop() {
