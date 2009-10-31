@@ -54,7 +54,7 @@ void processSimpleStateParam( State& state, Command& cmd ) {
     char *param = cmd.getParam();
     if (isEmpty(param)) {
       
-        if (CPM.isInState(state)) {
+        if (RDM.isInState(state)) {
           cmd.setReply(TRUERESP);
         } else {
           cmd.setReply(FALSERESP);
@@ -62,7 +62,7 @@ void processSimpleStateParam( State& state, Command& cmd ) {
     
     } else if (isGo(param)) {
     
-        CPM.transitionTo(state);
+        RDM.transitionTo(state);
         cmd.setReply(DONERESP);
     
     } else {
@@ -81,12 +81,10 @@ void processSelectParam( State& state, Command& cmd ) {
      cmd.setReply(param);
    } else {
      SelectedReagent = (Reagent)index;
-     CPM.transitionTo(state);
+     RDM.transitionTo(state);
     cmd.setReply(param);
   }
 }
-
-
 
 
 /* 
