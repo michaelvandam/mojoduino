@@ -1,0 +1,12 @@
+Mojo	KEYWORD1
+mojo	KEYWORD1
+Command	KEYWORD1
+
+setReply KEYWORD2
+setSerial	KEYWORD2
+loadBaudrateEEPROM	KEYWORD2
+loadAddressEEPROM	KEYWORD2
+addCallback	KEYWORD2
+setupDefaultCallbacks KEYWORD2
+run	KEYWORD2
+
