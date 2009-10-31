@@ -34,6 +34,57 @@ FSM RDM = FSM(standby);
 /*
 * Parsing Functions
 */
+/*
+* Parsing Functions
+*/
+
+int isGo(char *param) {
+    if (strcmp(param, GOPARAM) == 0) 
+        return true;
+    return false;
+}
+
+int isEmpty(char *param) {
+    if (strlen(param)==0)
+        return true;
+    return false;
+}
+
+void processSimpleStateParam( State& state, Command& cmd ) {
+    char *param = cmd.getParam();
+    if (isEmpty(param)) {
+      
+        if (CPM.isInState(state)) {
+          cmd.setReply(TRUERESP);
+        } else {
+          cmd.setReply(FALSERESP);
+        }
+    
+    } else if (isGo(param)) {
+    
+        CPM.transitionTo(state);
+        cmd.setReply(DONERESP);
+    
+    } else {
+        cmd.setReply(BADPARAM);
+    }
+}
+
+void processSelectParam( State& state, Command& cmd ) {
+  char *param = cmd.getParam();
+  int index = atoi(param);
+   if ((index <= NONE)||(index>REAGENT4)) {
+     SelectedReagent = NONE;
+     cmd.setReply(BADPARAM);
+   } else if (isEmpty(param)) {
+     itoa((int)SelectedReagent, param, 10);
+     cmd.setReply(param);
+   } else {
+     SelectedReagent = (Reagent)index;
+     CPM.transitionTo(state);
+    cmd.setReply(param);
+  }
+}
 
 
 
@@ -44,34 +95,22 @@ FSM RDM = FSM(standby);
 
 //Callback for standby
 void cbStandby( Command &cmd ) {
-  RDM.transitionTo(standby);
-  cmd.setReply(DONERESP);
+  processSimpleStateParam(standby, cmd);
 }
 
 //Callback for running
 void cbDeliver( Command &cmd ) {
-  char *param = cmd.getParam();
-  int index = atoi(param);
-   if ((index <= NONE)||(index>REAGENT4)) {
-     SelectedReagent = NONE;
-     cmd.setReply(BADPARAM);
-   } else {
-     SelectedReagent = (Reagent)index;
-     RDM.transitionTo(delivering);
-    cmd.setReply(param);
-  }
+  processSelectParam(delivering, cmd);
 }
 
 //Callback for clean
 void cbClean( Command &cmd ) {
-  RDM.transitionTo(cleaning);
-  cmd.setReply(DONERESP);
+  processSelectParam(cleaning, cmd);
 }
 
 //Callback loading
 void cbLoad( Command &cmd ) {
-  RDM.transitionTo(loading);
-  cmd.setReply(DONERESP);
+  processSimpleStateParam(loading, cmd);
 }
 
 void setup()

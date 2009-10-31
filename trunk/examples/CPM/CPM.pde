@@ -53,8 +53,12 @@ int isEmpty(char *param) {
 void processSimpleStateParam( State& state, Command& cmd ) {
     char *param = cmd.getParam();
     if (isEmpty(param)) {
-        //Check current state
-        cmd.setReply("?");
+      
+        if (CPM.isInState(state)) {
+          cmd.setReply(TRUERESP);
+        } else {
+          cmd.setReply(FALSERESP);
+        }
     
     } else if (isGo(param)) {
     
