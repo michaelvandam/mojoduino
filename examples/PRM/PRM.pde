@@ -7,16 +7,14 @@
 const char BADZ[] = "?LOWERZ";
 const char UPRESP[] = "UP";
 const char DOWNRESP[] = "DOWN";
-
+const char XERR[] = "?XERR";
 
 enum XPosition {HOME, POSITION1, POSITION2, POSITION3};
 
 enum ZPosition {UP, DOWN};
 
 XPosition xpos = HOME;
-
 ZPosition zpos = DOWN;
-
 
 /* 
 * PRM States
@@ -24,30 +22,31 @@ ZPosition zpos = DOWN;
 
 //X Motion State
 State XMoving = State(xstartmove, xmoving, movecomplete);
+State XError = State(xerror);
 
 
 //Z Motion State
 State ZMoving = State(zstartmove, zmoving, movecomplete);
+State ZError = State(zerror);
 
+State XStartup = State(initialX);
+State ZStartup = State(initialZ);
 
 // Motion Standby States
 State MotionStandby = State(motionstandby);
 
-//Reg States
-// ???
 
 /* 
 * Create PRM FSMs
 */
-FSM PRMMotionX = FSM(MotionStandby);
-FSM PRMMotionZ = FSM(MotionStandby);
+FSM PRMMotionX = FSM(XStartup);
+FSM PRMMotionZ = FSM(ZStartup);
 
 
 
 /*
 * Parsing Functions
 */
-
 
 int isGo(char *param) {
     if (strcmp(param, GOPARAM) == 0) 
@@ -84,8 +83,9 @@ void processXMotionParam(Command& cmd ) {
     int pos;
     char *param = cmd.getParam();
     
-           
-   if (isMoving()) {  // Can't move if already moving
+   if (PRMMotionX.isInState(XError)) {
+       cmd.setReply(XERR);
+    } else if (isMoving()) {  // Can't move if already moving
        cmd.setReply(BUSYRESP);
        
    } else if(isUp()) { // Can't move if UP
@@ -140,6 +140,8 @@ void processZMotionParam(Command& cmd ) {
 }
 
 
+
+
 /* 
 * Callbacks          
 */
@@ -159,6 +161,8 @@ void cbMoveZ( Command &cmd ) {
 
 void setup()
 {
+  
+  
   /*** SETUP MOJO COMMUNICATOR  ***/
   mojo.setSerial(Serial);  //Set which serial to listen on
   mojo.loadBaudrateEEPROM(); //Load baudrate from EEPROM
@@ -172,6 +176,7 @@ void setup()
   setupDefaultCallbacks(); 
   
   /*** ADDITIONAL PRM SETUP CODE ***/
+  Serial1.begin(9600);
 }
 
 void loop() {
@@ -184,31 +189,107 @@ void loop() {
 /*** UTILITY FUNCTIONS FOR FSM ***/
 
 void xstartmove() {
-  Serial.println("Start moving X");
+  //Serial.println("Start moving X");
   // Send command to move to Xpos then auto transition to moving state
   moveToXPosition();
 }
 
+
+char getReply() {
+  enum RESPSSTATE {BEGIN, ADDRESS, STATUS, END};
+  static RESPSSTATE respState = BEGIN;
+  byte c = 0;
+  while (Serial1.available() > 0) {
+     c = Serial1.read();
+     Serial.print("REC:");
+     Serial.println(c);
+     switch(respState) {
+       case BEGIN:
+         Serial.println("<BEGIN>");
+         if (c =='/')
+           c = 0;
+           respState = ADDRESS;
+         break;
+       case ADDRESS:
+         Serial.println("<ADDRESS>");
+         if (c == '0') {
+           c = 0; respState = STATUS;
+         } else 
+           respState = BEGIN;
+         break;
+       case STATUS:
+         Serial.println("<STATUS>");
+          respState = BEGIN;
+          Serial.flush();
+          return c;
+          break;
+       default:
+         Serial.println("<DEFAULT>");
+         c = 0;
+         respState = BEGIN;       
+      }
+  
+    return 0;  
+    }
+}
+
 void xmoving() {
-    Serial.println("Moving X");
+    static char response;
+    static int count = 0;
+    const int LIMIT = 50;
+    const int REPLYTIMEOUT = 100;
+    static int withoutReply = 0;
+    
+    
+    if (response = getReply()) {
+       withoutReply=0;
+       Serial.println(response);
+       if (!(motorBusy(response)) || !(motorInError(response)) )
+          PRMMotionX.transitionTo(MotionStandby);
+    } else {
+      count++;
+      if (count > LIMIT) {  // Only send query when limit is reached!
+        count = 0;
+        Serial1.println("/1Q\r\n");
+      } else
+          withoutReply++;
+    }
+      
+    if (withoutReply > REPLYTIMEOUT || motorInError(response) ) {
+      PRMMotionX.transitionTo(XError);
+    }
+    //Serial.println("Moving X");
     // Send command to check status when complete transition to standby
-    PRMMotionX.transitionTo(MotionStandby);
+    
+}
+
+
+boolean motorBusy(char response) {
+  // Check status byte in here!
+  Serial.print("StatusByte:");
+  Serial.println(response);
+  return false;
+}
+
+boolean motorInError(char response) {
+  // Check for error!
+  return false;
 }
 
 void zstartmove() {
-  Serial.println("Start moving Z");
+  //Serial.println("Start moving Z");
   // Change valve state
   moveToZPosition();
 }
 
 void zmoving() {
-  Serial.println("Moving Z");
-  // If we have sensors poll till in position
+  //Serial.println("Moving Z");
+  // If we have sensors poll till in position otherwise ....
   PRMMotionZ.transitionTo(MotionStandby);
 }
 
 void movecomplete() {
-  Serial.println("Move Complete");
+  //Serial.println("Move Complete");
   // Do clean up stuff - probably nothing
 }
 
@@ -217,23 +298,23 @@ void motionstandby() {
 }
 
 
-// Functions to move to Positions
+// Function to move to X Positions (will send commands on USART!)
 void moveToXPosition() {
   switch(xpos) {
     case HOME:
-      Serial.println("Go Home");
+      Serial1.println("/1Z4000000z0aE42680aC50au1000R\r");
       //Send command to home
       break;
     case POSITION1:
-      Serial.println("Go Pos 1");
+      Serial1.println("/1A1000000R\r");
       //Send command to goto pos 1
       break;
     case POSITION2:
-      Serial.println("Go Pos 2");
+      Serial1.println("/1A2000000R\r");
       //Send command to goto pos 2
       break;
     case POSITION3:
-      Serial.println("Go Pos 3");
+      Serial1.println("/1A3000000R\r");
       //Send command to goto pos 3
       break;
     default:
@@ -241,6 +322,7 @@ void moveToXPosition() {
   }
 }
 
+// Function to move to Z Positions (will change valve states!)
 void moveToZPosition() {
   switch(zpos) {
     case UP:
@@ -256,3 +338,20 @@ void moveToZPosition() {
   }
 }
 
+
+void initialX() {
+  xpos = HOME;
+  PRMMotionX.transitionTo(XMoving);  
+}
+
+void initialZ() {
+  zpos = DOWN;
+  PRMMotionZ.transitionTo(ZMoving);
+}
+
+
+void xerror(){
+}
+
+void zerror(){
+}
