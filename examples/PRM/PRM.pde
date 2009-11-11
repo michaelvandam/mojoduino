@@ -1,6 +1,8 @@
-#include <FiniteStateMachine.h>
-#include <mojo.h>
+#include <FiniteStateMachine.h> 
+#include <mojo.h> 
+#include "HardwareSerialRS485.h"
 
+#include "AMComm.h"  // AllMotion communication control library
 /*
 * PRM Parameters
 */
@@ -8,6 +10,7 @@ const char BADZ[] = "?LOWERZ";
 const char UPRESP[] = "UP";
 const char DOWNRESP[] = "DOWN";
 const char XERR[] = "?XERR";
+const long MOTORCTRLTIMEOUT = 10000;
 
 enum XPosition {HOME, POSITION1, POSITION2, POSITION3};
 
@@ -16,6 +19,9 @@ enum ZPosition {UP, DOWN};
 XPosition xpos = HOME;
 ZPosition zpos = DOWN;
 
+AMComm MotorCtrl = AMComm(Serial1RS485, '1'); //Device at address '1'
+AMComm TempCtrl = AMComm(Serial1RS485, '2');  //Device at address '2'
+  
 /* 
 * PRM States
 */
@@ -24,10 +30,9 @@ ZPosition zpos = DOWN;
 State XMoving = State(xstartmove, xmoving, movecomplete);
 State XError = State(xerror);
 
-
 //Z Motion State
 State ZMoving = State(zstartmove, zmoving, movecomplete);
-State ZError = State(zerror);
+
 
 State XStartup = State(initialX);
 State ZStartup = State(initialZ);
@@ -48,13 +53,13 @@ FSM PRMMotionZ = FSM(ZStartup);
 * Parsing Functions
 */
 
-int isGo(char *param) {
+boolean isGo(char *param) {
     if (strcmp(param, GOPARAM) == 0) 
         return true;
     return false;
 }
 
-int isEmpty(char *param) {
+boolean isEmpty(char *param) {
     if (strlen(param)==0)
         return true;
     return false;
@@ -83,16 +88,18 @@ void processXMotionParam(Command& cmd ) {
     int pos;
     char *param = cmd.getParam();
     
-   if (PRMMotionX.isInState(XError)) {
-       cmd.setReply(XERR);
-    } else if (isMoving()) {  // Can't move if already moving
+    if (isMoving()) {  // Can't move if already moving
        cmd.setReply(BUSYRESP);
        
    } else if(isUp()) { // Can't move if UP
        cmd.setReply(BADZ);
    } else if (isEmpty(param)) {  // Return current position
-         itoa((int)xpos, param, 10);
-         cmd.setReply(param);
+         if (PRMMotionX.isInState(XError)) {
+           cmd.setReply(XERR);
+         } else {
+           itoa((int)xpos, param, 10);
+           cmd.setReply(param);
+         }
     } else { // Check that user send valid position then move to it
         
         if (strcmp(param, "HOME")==0) {
@@ -176,7 +183,11 @@ void setup()
   setupDefaultCallbacks(); 
   
   /*** ADDITIONAL PRM SETUP CODE ***/
-  Serial1.begin(9600);
+  Serial1RS485.begin(9600);
+  //Serial1RS485.begin(9600);
+  Serial1RS485.setControlPin(2);
+  MotorCtrl.setTimeout(MOTORCTRLTIMEOUT);  //Set timeout to 5sec
+  
 }
 
 void loop() {
@@ -194,87 +205,26 @@ void xstartmove() {
   moveToXPosition();
 }
 
-
-char getReply() {
-  enum RESPSSTATE {BEGIN, ADDRESS, STATUS, END};
-  static RESPSSTATE respState = BEGIN;
-  byte c = 0;
-  while (Serial1.available() > 0) {
-     c = Serial1.read();
-     Serial.print("REC:");
-     Serial.println(c);
-     switch(respState) {
-       case BEGIN:
-         Serial.println("<BEGIN>");
-         if (c =='/')
-           c = 0;
-           respState = ADDRESS;
-         break;
-       case ADDRESS:
-         Serial.println("<ADDRESS>");
-         if (c == '0') {
-           c = 0; respState = STATUS;
-         } else 
-           respState = BEGIN;
-         break;
-       case STATUS:
-         Serial.println("<STATUS>");
-          respState = BEGIN;
-          Serial.flush();
-          return c;
-          break;
-       default:
-         Serial.println("<DEFAULT>");
-         c = 0;
-         respState = BEGIN;       
-      }
-  
-    return 0;  
-    }
-}
-
 void xmoving() {
-    static char response;
-    static int count = 0;
-    const int LIMIT = 50;
-    const int REPLYTIMEOUT = 100;
-    static int withoutReply = 0;
-    
-    
-    if (response = getReply()) {
-       withoutReply=0;
-       Serial.println(response);
-       if (!(motorBusy(response)) || !(motorInError(response)) )
+
+    //Serial1.println("XMoving");
+    //MotorCtrl.sendQuery();    
+    MotorCtrl.receive();
+        
+    if ( MotorCtrl.messageReady()) {
+        
+       if (MotorCtrl.isBusy()==false)
           PRMMotionX.transitionTo(MotionStandby);
-    } else {
-      count++;
-      if (count > LIMIT) {  // Only send query when limit is reached!
-        count = 0;
-        Serial1.println("/1Q\r\n");
-      } else
-          withoutReply++;
-    }
-      
-    if (withoutReply > REPLYTIMEOUT || motorInError(response) ) {
-      PRMMotionX.transitionTo(XError);
-    }
-    //Serial.println("Moving X");
-    // Send command to check status when complete transition to standby
-    
+     } else {
+       MotorCtrl.sendQuery();
+     }
+     
+     if (MotorCtrl.isInTimeout()) {
+       PRMMotionX.transitionTo(XError);
+     }
+     
 }
 
-
-boolean motorBusy(char response) {
-  // Check status byte in here!
-  Serial.print("StatusByte:");
-  Serial.println(response);
-  return false;
-}
-
-boolean motorInError(char response) {
-  // Check for error!
-  return false;
-}
 
 void zstartmove() {
   //Serial.println("Start moving Z");
@@ -302,19 +252,19 @@ void motionstandby() {
 void moveToXPosition() {
   switch(xpos) {
     case HOME:
-      Serial1.println("/1Z4000000z0aE42680aC50au1000R\r");
+      MotorCtrl.send("Z4000000z0aE42680aC50au1000n8R");
       //Send command to home
       break;
     case POSITION1:
-      Serial1.println("/1A1000000R\r");
+      MotorCtrl.send("A10000R");
       //Send command to goto pos 1
       break;
     case POSITION2:
-      Serial1.println("/1A2000000R\r");
+      MotorCtrl.send("A20000R");
       //Send command to goto pos 2
       break;
     case POSITION3:
-      Serial1.println("/1A3000000R\r");
+      MotorCtrl.send("A30000R");
       //Send command to goto pos 3
       break;
     default:
@@ -326,11 +276,11 @@ void moveToXPosition() {
 void moveToZPosition() {
   switch(zpos) {
     case UP:
-      Serial.println("Go up");
+      //Serial.println("Go up");
       //Send command to go UP
       break;
     case DOWN:
-      Serial.println("Go down");
+      //Serial.println("Go down");
       //Send command to go UP
       break;
     default:
@@ -349,9 +299,6 @@ void initialZ() {
   PRMMotionZ.transitionTo(ZMoving);
 }
 
-
-void xerror(){
-}
-
-void zerror(){
+void xerror() {
+  // Probably send terminate here...
 }
