@@ -1,6 +1,8 @@
 #include <FiniteStateMachine.h>
 #include <mojo.h>
+#include "HardwareSerialRS485.h"
 
+int ledPin = 13;
 
 /*
 * RDM Parameters
@@ -23,7 +25,7 @@ State standby = State(gostandby);
 State delivering = State(godeliver);
 State loading = State(goload);
 State cleaning = State(goclean);
-
+State pumping = State(gopump);
 /* 
 * Create RDM FSM
 */
@@ -110,10 +112,18 @@ void cbLoad( Command &cmd ) {
   processSimpleStateParam(loading, cmd);
 }
 
+//Callback Pump
+void cbPump( Command &cmd ) {
+  processSimpleStateParam(pumping, cmd);
+}
+
+
 void setup()
 {
   /*** SETUP MOJO COMMUNICATOR  ***/
-  mojo.setSerial(Serial);  //Set which serial to listen on
+  Serial1RS485.setControlPin(2);
+  mojo.setSerial(Serial1RS485);  //Set which serial to listen on
+  
   mojo.loadBaudrateEEPROM(); //Load baudrate from EEPROM
   mojo.loadAddressEEPROM(); //Load address from EEPROM
   
@@ -122,7 +132,7 @@ void setup()
   addCallback("DELVR", cbDeliver);
   addCallback("CLEAN", cbClean);
   addCallback("LOAD", cbLoad);  
-  
+  addCallback("PUMP", cbPump);
   /*** ATTACH DEFAULT CALLBACKS ***/
   setupDefaultCallbacks(); 
   
@@ -204,6 +214,22 @@ void goload() {
   //Close Reagent valves
 }
  
+void gopump() {
+    static int state = HIGH;
+    static long previousMillis;
+    long interval = 1000; 
+     
+     
+    if (millis() - previousMillis > interval) {
+      previousMillis = millis();
+      if (state == LOW)
+          state = HIGH;
+      else
+          state = LOW;
+      
+      digitalWrite(ledPin, state);
+    }
+}
    
 
    
