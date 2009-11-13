@@ -12,6 +12,10 @@ const char DOWNRESP[] = "DOWN";
 const char XERR[] = "?XERR";
 const long MOTORCTRLTIMEOUT = 10000;
 
+int upPin = 38;
+int downPin = 40;
+
+
 enum XPosition {HOME, POSITION1, POSITION2, POSITION3};
 
 enum ZPosition {UP, DOWN};
@@ -171,6 +175,7 @@ void setup()
   
   
   /*** SETUP MOJO COMMUNICATOR  ***/
+  mojo.setDeviceType("PRM-V0.1");
   mojo.setSerial(Serial);  //Set which serial to listen on
   mojo.loadBaudrateEEPROM(); //Load baudrate from EEPROM
   mojo.loadAddressEEPROM(); //Load address from EEPROM
@@ -188,6 +193,11 @@ void setup()
   Serial1RS485.setControlPin(2);
   MotorCtrl.setTimeout(MOTORCTRLTIMEOUT);  //Set timeout to 5sec
   
+  pinMode(upPin,OUTPUT);
+  pinMode(downPin,OUTPUT);
+ for (int i=38;i<53;i++){
+  pinMode(i, OUTPUT);
+} 
 }
 
 void loop() {
@@ -277,10 +287,14 @@ void moveToZPosition() {
   switch(zpos) {
     case UP:
       //Serial.println("Go up");
+      digitalWrite(upPin,HIGH);
+      digitalWrite(downPin,LOW);
       //Send command to go UP
       break;
     case DOWN:
       //Serial.println("Go down");
+      digitalWrite(upPin,LOW);
+      digitalWrite(downPin,HIGH);
       //Send command to go UP
       break;
     default:
