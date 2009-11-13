@@ -121,8 +121,9 @@ void cbPump( Command &cmd ) {
 void setup()
 {
   /*** SETUP MOJO COMMUNICATOR  ***/
-  Serial1RS485.setControlPin(2);
-  mojo.setSerial(Serial1RS485);  //Set which serial to listen on
+  mojo.setDeviceType("RDM-V0.1");
+  SerialRS485.setControlPin(2);
+  mojo.setSerial(SerialRS485);  //Set which serial to listen on
   
   mojo.loadBaudrateEEPROM(); //Load baudrate from EEPROM
   mojo.loadAddressEEPROM(); //Load address from EEPROM

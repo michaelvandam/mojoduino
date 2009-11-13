@@ -135,6 +135,7 @@ void cbElute( Command &cmd ) {
 void setup()
 {
   /*** SETUP MOJO COMMUNICATOR  ***/
+  mojo.setDeviceType("CPM-V0.1");
   mojo.setSerial(Serial);  //Set which serial to listen on
   mojo.loadBaudrateEEPROM(); //Load baudrate from EEPROM
   mojo.loadAddressEEPROM(); //Load address from EEPROM

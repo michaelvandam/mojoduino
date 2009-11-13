@@ -14,6 +14,7 @@ extern "C" {
 #include "mojo.h"
 #include "mojodispatch.h"
 #include "mojomsg.h"
+
 #include "mojodefs.h"
 #include <inttypes.h>
 #include <string.h>
@@ -194,5 +195,11 @@ long Mojo::getBaudrate(){
   return baudRates[baudIndex];
 }
 
+void Mojo::setDeviceType(char *s) {
+    strcpy(deviceType, s);
+}
 
+char *Mojo::getDeviceType() {
+    return deviceType;
+}
 Mojo mojo;

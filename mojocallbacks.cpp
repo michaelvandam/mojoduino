@@ -62,11 +62,11 @@ void savebaud( Command &cmd ) {
 }
 
 void who( Command &cmd ) {
-  cmd.setReply(DEVICEID);
+  cmd.setReply(mojo.getDeviceType());
 }
 
 void annc( Command &cmd ) {
-  long t = 50;
+  long t = 5;
   t = t * mojo.getAddress();
   delay(t);
   //Serial.println("Delay then announce");

@@ -13,7 +13,7 @@
 #include "mojocallbacks.h"
 #include "mojoresponses.h"
 
-
+const int DEVTYPELEN = 15;
       
 class Mojo
 {
@@ -37,6 +37,9 @@ class Mojo
     void loadBaudrateEEPROM();
     void saveBaudrateEEPROM();
     
+    void setDeviceType(char *s);
+    char *getDeviceType();
+    
     void readyForNext();
     void run();
     void dispatch();
@@ -55,6 +58,7 @@ class Mojo
     uint8_t _messageState;
     Message msg;
     char msgBuffer[MAXMSGSIZE];
+    char deviceType[DEVTYPELEN];
     char *current;
     char *last;
     unsigned char addy;
