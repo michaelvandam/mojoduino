@@ -1,7 +1,6 @@
 #include <FiniteStateMachine.h> 
 #include <mojo.h> 
 #include "HardwareSerialRS485.h"
-
 #include "AMComm.h"  // AllMotion communication control library
 /*
 * PRM Parameters
@@ -24,7 +23,7 @@ XPosition xpos = HOME;
 ZPosition zpos = DOWN;
 
 AMComm MotorCtrl = AMComm(Serial1RS485, '1'); //Device at address '1'
-AMComm TempCtrl = AMComm(Serial1RS485, '2');  //Device at address '2'
+AMComm TempCtrl = AMComm(Serial2RS485, '2');  //Device at address '2'
   
 /* 
 * PRM States
@@ -188,9 +187,12 @@ void setup()
   setupDefaultCallbacks(); 
   
   /*** ADDITIONAL PRM SETUP CODE ***/
+  //Serial.begin(9600);
   Serial1RS485.begin(9600);
-  //Serial1RS485.begin(9600);
+  //SerialRS485.begin(9600);
+  //SerialRS485.setControlPin(4);
   Serial1RS485.setControlPin(2);
+  
   MotorCtrl.setTimeout(MOTORCTRLTIMEOUT);  //Set timeout to 5sec
   
   pinMode(upPin,OUTPUT);
@@ -216,20 +218,23 @@ void xstartmove() {
 }
 
 void xmoving() {
-
-    //Serial1.println("XMoving");
-    //MotorCtrl.sendQuery();    
+    Serial1.println("XMoving");
+    MotorCtrl.sendQuery();    
     MotorCtrl.receive();
         
-    if ( MotorCtrl.messageReady()) {
-        
-       if (MotorCtrl.isBusy()==false)
-          PRMMotionX.transitionTo(MotionStandby);
+    if ( MotorCtrl.messageReady() ) {
+       //Serial.println("Message Ready");
+       if (MotorCtrl.isBusy()==false) {
+           //Serial.println("Motor No Busy");
+           PRMMotionX.transitionTo(MotionStandby);
      } else {
-       MotorCtrl.sendQuery();
+       //Serial.println("Send Query!");
+          MotorCtrl.sendQuery();
      }
+    }
      
      if (MotorCtrl.isInTimeout()) {
+       //Serial.println("Timeout!");
        PRMMotionX.transitionTo(XError);
      }
      
@@ -262,19 +267,23 @@ void motionstandby() {
 void moveToXPosition() {
   switch(xpos) {
     case HOME:
+      //Serial.println("Go Home!");
       MotorCtrl.send("Z4000000z0aE42680aC50au1000n8R");
       //Send command to home
       break;
     case POSITION1:
-      MotorCtrl.send("A10000R");
+      //Serial.println("Go P1!");
+      MotorCtrl.send("A20000R");
       //Send command to goto pos 1
       break;
     case POSITION2:
-      MotorCtrl.send("A20000R");
+      //Serial.println("Go P2!");
+      MotorCtrl.send("A40000R");
       //Send command to goto pos 2
       break;
     case POSITION3:
-      MotorCtrl.send("A30000R");
+      //Serial.println("Go P3!");
+      MotorCtrl.send("A60000R");
       //Send command to goto pos 3
       break;
     default:
@@ -286,7 +295,7 @@ void moveToXPosition() {
 void moveToZPosition() {
   switch(zpos) {
     case UP:
-      //Serial.println("Go up");
+      Serial.println("Go up");
       digitalWrite(upPin,HIGH);
       digitalWrite(downPin,LOW);
       //Send command to go UP

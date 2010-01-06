@@ -29,12 +29,12 @@ void AMComm::setAddress(char addr){
 boolean AMComm::receive() {
     char c;
     boolean recievedByte = false;
-    
     while (serial->available() > 0) {
        resetTimeout();
        recievedByte = true;
        c = serial->read();
-
+       //Serial.print("Received:");
+       //Serial.println(c);
        switch(messageState) {
          case BEGIN:
            //Serial.println("BEGIN");
@@ -71,7 +71,7 @@ boolean AMComm::receive() {
 boolean AMComm::messageReady() {
   if (messageState == END) {
     messageState = BEGIN;
-    serial->flush();
+    //serial->flush();
     return true;
   } else {
     return false;
@@ -111,7 +111,7 @@ void AMComm::send(char *str) {
     serial->println(buf);
     serial->println();
     readyToSend=false;
-    serial->flush();
+    //serial->flush();
     resetTimeout();
 }
 
@@ -122,11 +122,13 @@ boolean AMComm::isInError() {
 
 
 boolean AMComm::isBusy() {
+    //return true;
+    //Serial.println("Not Ready");
     if (status & READYBIT)  {
-      Serial.println("Ready");
+      //Serial.println("Ready");
       return false;
     }
-    Serial.println("Not Ready");  
+    //Serial.println("Not Ready");  
     return true;   
 }
 
@@ -134,7 +136,7 @@ boolean AMComm::isBusy() {
 void AMComm::sendQuery() {
   static int count = 0;
   count++;
-    if (readyToSend && count > 100) {
+    if (readyToSend && (count > 150) ) {
       send("Q");
       count = 0;
     }
