@@ -26,6 +26,7 @@
 
 struct ring_buffer;
 
+
 extern ring_buffer rx_buffer;
 #if defined(__AVR_ATmega1280__)
 extern ring_buffer rx_buffer1;
@@ -35,28 +36,29 @@ extern ring_buffer rx_buffer3;
 
 class HardwareSerial : public Print
 {
+  protected:
+    uint8_t _udre;
+    volatile uint8_t *_udr;
+    volatile uint8_t *_ucsra;    
   private:
     ring_buffer *_rx_buffer;
     volatile uint8_t *_ubrrh;
     volatile uint8_t *_ubrrl;
-    
+    //volatile uint8_t *_ucsra;
     volatile uint8_t *_ucsrb;
-    volatile uint8_t *_udr;
+    //volatile uint8_t *_udr;
     uint8_t _rxen;
     uint8_t _txen;
     uint8_t _rxcie;
-    uint8_t _udre;
+    //uint8_t _udre;
     uint8_t _u2x;
-  protected:                    // Modified Henry Herman 11/06/09  to allow access by subclasses
-    volatile uint8_t *_ucsra;   // Modified Henry Herman 11/06/09  to allow access by sublcasses to check  register values like TXCn
-    
   public:
     HardwareSerial(ring_buffer *rx_buffer,
       volatile uint8_t *ubrrh, volatile uint8_t *ubrrl,
       volatile uint8_t *ucsra, volatile uint8_t *ucsrb,
       volatile uint8_t *udr,
       uint8_t rxen, uint8_t txen, uint8_t rxcie, uint8_t udre, uint8_t u2x);
-    virtual void begin(long);
+    void begin(long);
     uint8_t available(void);
     int read(void);
     void flush(void);
@@ -67,9 +69,10 @@ class HardwareSerial : public Print
 extern HardwareSerial Serial;
 
 #if defined(__AVR_ATmega1280__)
-extern HardwareSerial Serial1;
-extern HardwareSerial Serial2;
-extern HardwareSerial Serial3;
+/* Commented to save space!! */
+//extern HardwareSerial Serial1;
+//extern HardwareSerial Serial2;
+//extern HardwareSerial Serial3;
 #endif
 
 #endif

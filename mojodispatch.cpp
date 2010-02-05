@@ -17,7 +17,7 @@ void addCallback(const char *callbackName, CALLBACKFXN f) {
     if (index >= MAXCMDS) return;
     callbacks[index].setCallbackName(callbackName);    
     callbacks[index].setFxn(f); 
-    #ifdef DEBUG
+    #ifdef DEBUGDIS
     Serial.print("Add Callback:");
     Serial.println(callbackName);
     #endif
@@ -28,8 +28,7 @@ void msgDispatch( Message *msg) {
     Command *c;
     while((c = msg->getCmd())) {
         cmdDispatch(c);
-    }
-    
+    }    
 }
 
 
@@ -40,11 +39,12 @@ void cmdDispatch( Command *cmd ) {
             return;
         }
     }
-    #ifdef DEBUG
+    cmd->setReply_P(BADCMD); //Command not found
+    
+    #ifdef DEBUGDIS
     Serial.print("Not found:");
     Serial.println(cmd->getCmd());
     #endif
-    cmd->setReply(BADCMD);
 }
 
 Callback::Callback() {
@@ -52,7 +52,7 @@ Callback::Callback() {
 }
 
 int Callback::forMe(Command &cmd) {
-    #ifdef DEBUG
+    #ifdef DEBUGDIS
     Serial.print("CMD:");
     Serial.print(cmd.getCmd());
     Serial.print("- CBNAME:");
@@ -82,7 +82,7 @@ void Callback::setCallbackName(const char *cbname) {
 }
 
 void Callback::callFxn(Command &cmd) {
-    #ifdef DEBUG
+    #ifdef DEBUGDIS
     Serial.print("Found:");
     Serial.println(callbackName);
     #endif

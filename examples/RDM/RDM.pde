@@ -2,7 +2,25 @@
 #include <mojo.h>
 #include "HardwareSerialRS485.h"
 
-int ledPin = 13;
+
+byte ledPin = 13;
+byte valve1Clean = 31;
+byte valve1Lower= 47;
+byte valve2Clean = 29;
+byte valve2Lower = 45;
+byte valve3Clean = 27;
+byte valve3Lower = 43;
+byte valve4Clean = 25;
+byte valve4Lower = 41;
+byte valveVentPress = 23;
+byte valveWaste = 39;
+byte OPEN = HIGH;
+byte CLOSE = LOW;
+byte wasteState = CLOSE;
+
+boolean resetDeliverValves = false;
+boolean resetCleanValves = false;
+
 
 /*
 * RDM Parameters
@@ -16,16 +34,16 @@ enum Reagent{
 };
 
 Reagent SelectedReagent = NONE;
+Reagent SelectedCleanReagent = NONE;
 
 
 /* 
 * RDM States
 */
-State standby = State(gostandby);
+State standby = State(gostandby, doNothing, doNothing);
 State delivering = State(godeliver);
 State loading = State(goload);
-State cleaning = State(goclean);
-State pumping = State(gopump);
+State cleaning =State(goclean);
 /* 
 * Create RDM FSM
 */
@@ -39,10 +57,10 @@ FSM RDM = FSM(standby);
 * Parsing Functions
 */
 
-int isGo(char *param) {
-    if (strcmp(param, GOPARAM) == 0) 
-        return true;
-    return false;
+boolean isPSTR(const char *param, PGM_P pstr) {
+ if (strcmp_P(param, pstr) == 0) 
+    return true;
+  return false;
 }
 
 int isEmpty(char *param) {
@@ -56,37 +74,20 @@ void processSimpleStateParam( State& state, Command& cmd ) {
     if (isEmpty(param)) {
       
         if (RDM.isInState(state)) {
-          cmd.setReply(TRUERESP);
+          cmd.setReply_P(TRUERESP);
         } else {
-          cmd.setReply(FALSERESP);
+          cmd.setReply_P(FALSERESP);
         }
     
-    } else if (isGo(param)) {
+    } else if (isPSTR(param,GOPARAM)) {
     
         RDM.transitionTo(state);
-        cmd.setReply(DONERESP);
+        cmd.setReply_P(DONERESP);
     
     } else {
-        cmd.setReply(BADPARAM);
+        cmd.setReply_P(BADPARAM);
     }
 }
-
-void processSelectParam( State& state, Command& cmd ) {
-  char *param = cmd.getParam();
-  int index = atoi(param);
-   if ((index <= NONE)||(index>REAGENT4)) {
-     SelectedReagent = NONE;
-     cmd.setReply(BADPARAM);
-   } else if (isEmpty(param)) {
-     itoa((int)SelectedReagent, param, 10);
-     cmd.setReply(param);
-   } else {
-     SelectedReagent = (Reagent)index;
-     RDM.transitionTo(state);
-    cmd.setReply(param);
-  }
-}
-
 
 /* 
 * Callbacks          
@@ -97,46 +98,94 @@ void cbStandby( Command &cmd ) {
   processSimpleStateParam(standby, cmd);
 }
 
-//Callback for running
-void cbDeliver( Command &cmd ) {
-  processSelectParam(delivering, cmd);
-}
-
-//Callback for clean
-void cbClean( Command &cmd ) {
-  processSelectParam(cleaning, cmd);
-}
-
 //Callback loading
 void cbLoad( Command &cmd ) {
   processSimpleStateParam(loading, cmd);
 }
 
-//Callback Pump
-void cbPump( Command &cmd ) {
-  processSimpleStateParam(pumping, cmd);
+//Callback for running
+void cbDeliver( Command &cmd ) {
+  char *param = cmd.getParam();
+  int index = atoi(param);
+   if ((index <= NONE)||(index>REAGENT4)) {
+     SelectedReagent = NONE;
+     cmd.setReply_P(BADPARAM);
+   } else if (isEmpty(param)) {
+     itoa((int)SelectedReagent, param, 10);
+     cmd.setReply(param);
+   } else {
+     SelectedReagent = (Reagent)index;
+     resetDeliverValves = true;
+     RDM.transitionTo(delivering);
+    cmd.setReply(param);
+   }
 }
+
+//Callback for clean
+void cbClean( Command &cmd ) {
+  char *param = cmd.getParam();
+  int index = atoi(param);
+   if ((index <= NONE)||(index>REAGENT4)) {
+     SelectedCleanReagent = NONE;
+     cmd.setReply_P(BADPARAM);
+   } else if (isEmpty(param)) {
+     itoa((int)SelectedCleanReagent, param, 10);
+     cmd.setReply(param);
+   } else {
+     SelectedCleanReagent = (Reagent)index;
+     resetCleanValves = true;
+     RDM.transitionTo(cleaning);
+    cmd.setReply(param);
+  }
+}
+
+void cbWaste( Command &cmd ) {
+  char * param = cmd.getParam();
+  
+  if (isEmpty(param)) {
+    if (wasteState==OPEN) 
+      cmd.setReply_P(OPENPARAM);
+    else
+      cmd.setReply_P(CLOSEPARAM);
+  } else if (isPSTR(param,OPENPARAM)) {
+      wasteState = OPEN;
+      digitalWrite(valveWaste,wasteState);
+      cmd.setReply_P(OPENPARAM);
+  } else if (isPSTR(param,CLOSEPARAM)) {
+      wasteState = CLOSE;
+      digitalWrite(valveWaste,wasteState);
+      cmd.setReply_P(CLOSEPARAM);
+  } else {
+    cmd.setReply_P(BADPARAM);
+  }
+  
+}
+
 
 
 void setup()
 {
   /*** SETUP MOJO COMMUNICATOR  ***/
-  mojo.setDeviceType("RDM-V0.1");
-  SerialRS485.setControlPin(2);
+  mojo.setDeviceType_P(PSTR("RDM-V0.1"));
+  SerialRS485.setControlPin(4);
   mojo.setSerial(SerialRS485);  //Set which serial to listen on
   
   mojo.loadBaudrateEEPROM(); //Load baudrate from EEPROM
   mojo.loadAddressEEPROM(); //Load address from EEPROM
-  
+  /*** ATTACH DEFAULT CALLBACKS ***/
+  setupDefaultCallbacks(); 
   /*** ATTACH CALLBACKS HERE ***/
   addCallback("STDBY", cbStandby);
   addCallback("DELVR", cbDeliver);
   addCallback("CLEAN", cbClean);
-  addCallback("LOAD", cbLoad);  
-  addCallback("PUMP", cbPump);
-  /*** ATTACH DEFAULT CALLBACKS ***/
-  setupDefaultCallbacks(); 
-  
+  addCallback("WASTE", cbWaste);
+  addCallback("LOAD", cbLoad);
+
+  pinMode(13,OUTPUT);
+  for(int i=23; i<53;i=i+2) {
+  pinMode(i,OUTPUT);
+  digitalWrite(i,LOW);
+  }
   /*** ADDITIONAL RDM SETUP CODE ***/
 }
 
@@ -147,22 +196,71 @@ void loop() {
 
 
 /*** UTILITY FUNCTIONS FOR FSM ***/
+void vent() {
+  digitalWrite(valveVentPress,CLOSE);
+}
+
+void pressurize() {
+  digitalWrite(valveVentPress,OPEN);
+}
+void closeall() {
+    static int stat = 1;
+    if(stat == 1) {
+      digitalWrite(13,LOW);
+      stat = 0;
+    } else {
+      digitalWrite(13,HIGH);
+      stat=1;
+    }
+    
+    for(int i=23;i<53;i=i+2) {
+    digitalWrite(i,LOW);
+    }
+}
+
+void closeCleaningValves() {
+  digitalWrite(valve1Clean,LOW);
+  digitalWrite(valve2Clean,LOW);
+  digitalWrite(valve3Clean,LOW);
+  digitalWrite(valve4Clean,LOW);
+}
+
+void closeDeliverValves() {
+  digitalWrite(valve1Lower,LOW);
+  digitalWrite(valve2Lower,LOW);
+  digitalWrite(valve3Lower,LOW);
+  digitalWrite(valve4Lower,LOW);
+}
 
 void deliverReagent() {
+    closeCleaningValves();
+    if(resetDeliverValves == true) {
+      closeDeliverValves();
+      resetDeliverValves=false;
+    }
+  
     switch(SelectedReagent) {
       case NONE:
         break;
       case REAGENT1:
         //OPEN VALVE REAGENT1
+        digitalWrite(valve1Lower,OPEN);
+        pressurize();
         break;
       case REAGENT2:
         //OPEN VALVE REAGENT2
+        digitalWrite(valve2Lower,OPEN);
+        pressurize();
         break;
-      case REAGENT3:
+      case REAGENT3:      
         //OPEN VALVE REAGENT3
+        digitalWrite(valve3Lower,OPEN);
+        pressurize();
         break;
       case REAGENT4:
         //OPEN VALVE REAGENT4
+        digitalWrite(valve4Lower,OPEN);
+        pressurize();
         break;
       default:
         // OOPS?
@@ -172,19 +270,32 @@ void deliverReagent() {
 
 
 void cleanReagent() {
-    switch(SelectedReagent) {
+    if(resetCleanValves == true) {
+      closeCleaningValves(); 
+      resetCleanValves=false;
+    }
+    
+    switch(SelectedCleanReagent) {
       case NONE:
         break;
       case REAGENT1:
+        vent();
+        digitalWrite(valve1Clean,OPEN);
         //OPEN CLEAN VALVE REAGENT1
         break;
       case REAGENT2:
+        vent();
+        digitalWrite(valve2Clean,OPEN);
         //OPEN CLEAN VALVE REAGENT2
         break;
       case REAGENT3:
+        vent();
+        digitalWrite(valve3Clean,OPEN);
         //OPEN CLEAN VALVE REAGENT3
         break;
       case REAGENT4:
+        vent();
+        digitalWrite(valve4Clean,OPEN);
         //OPEN CLEAN VALVE REAGENT4
         break;
       default:
@@ -193,15 +304,23 @@ void cleanReagent() {
   }
 }
 
-
 void gostandby() {  
   //OPEN AIR VALVE TO VENT
   //CLOSE REAGENT VALVES
-  }
+  //    closeall();
+  closeCleaningValves();
+  vent();
+  closeDeliverValves();
+    
+}
 
 void godeliver() {  
   //OPEN VALVE TO PRESSURE
   deliverReagent();
+}
+
+void godeliverstandby() {
+  //DO NOTHING!!!
 }
 
 
@@ -213,25 +332,15 @@ void goclean() {
 void goload() { 
   //Open to vent
   //Close Reagent valves
+  closeCleaningValves();
+  vent();
+  closeDeliverValves();
+
 }
  
-void gopump() {
-    static int state = HIGH;
-    static long previousMillis;
-    long interval = 1000; 
-     
-     
-    if (millis() - previousMillis > interval) {
-      previousMillis = millis();
-      if (state == LOW)
-          state = HIGH;
-      else
-          state = LOW;
-      
-      digitalWrite(ledPin, state);
-    }
+void doNothing() {
 }
-   
+
 
    
 
