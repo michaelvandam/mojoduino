@@ -8,10 +8,11 @@
 #include "HardwareSerial.h"
 #include "mojodefs.h"
 #include "mojomsg.h"
-#include <inttypes.h>
 #include "mojodispatch.h"
 #include "mojocallbacks.h"
 #include "mojoresponses.h"
+#include <avr/pgmspace.h>
+#include <inttypes.h>
 
 const int DEVTYPELEN = 15;
       
@@ -38,6 +39,7 @@ class Mojo
     void saveBaudrateEEPROM();
     
     void setDeviceType(char *s);
+    void setDeviceType_P(PGM_P s);
     char *getDeviceType();
     
     void readyForNext();

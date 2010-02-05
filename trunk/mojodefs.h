@@ -6,8 +6,8 @@
 //Mojo Limits
 #define MAXMSGSIZE 128
 #define MAXCMDS 20
-#define MAXCMDLEN 8
-#define MAXPARAMLEN 17
+#define MAXCMDLEN 6
+#define MAXPARAMLEN 10
 #define REPLYLEN MAXCMDLEN + MAXPARAMLEN + 1
 
 

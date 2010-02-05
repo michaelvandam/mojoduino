@@ -33,16 +33,22 @@ boolean AMComm::receive() {
        resetTimeout();
        recievedByte = true;
        c = serial->read();
-       //Serial.print("Received:");
-       //Serial.println(c);
+       #ifdef DEBUGAM
+       Serial.print("Received:");
+       Serial.println(c);
+       #endif
        switch(messageState) {
          case BEGIN:
-           //Serial.println("BEGIN");
+           #ifdef DEBUGAM
+           Serial.println("BEGIN");
+           #endif
            if (c =='/')
              messageState = ADDRESS;
            break;
          case ADDRESS:
-           //Serial.println("ADDRESS");
+           #ifdef DEBUGAM
+           Serial.println("ADDRESS");
+            #endif
             delay(100);
            if (c == '0') {
              messageState = STATUS;
@@ -50,13 +56,17 @@ boolean AMComm::receive() {
              messageState = BEGIN;
            break;
          case STATUS:
-            //Serial.println("STATUS");
+            #ifdef DEBUGAM
+            Serial.println("STATUS");
+            #endif
             delay(100);
             messageState = END;
             status = c;
             break;
          case END:
-           //Serial.println("END");
+           #ifdef DEBUGAM
+           Serial.println("END");
+           #endif
            readyToSend=true;
            break;
          default:
@@ -71,7 +81,6 @@ boolean AMComm::receive() {
 boolean AMComm::messageReady() {
   if (messageState == END) {
     messageState = BEGIN;
-    //serial->flush();
     return true;
   } else {
     return false;
@@ -122,13 +131,18 @@ boolean AMComm::isInError() {
 
 
 boolean AMComm::isBusy() {
-    //return true;
-    //Serial.println("Not Ready");
+  #ifdef DEBUGAM
+  Serial.println("Not Ready");
+  #endif
     if (status & READYBIT)  {
-      //Serial.println("Ready");
+      #ifdef DEBUGAM
+      Serial.println("Ready");
+      #endif
       return false;
     }
-    //Serial.println("Not Ready");  
+    #ifdef DEBUGAM
+    Serial.println("Not Ready");  
+    #endif
     return true;   
 }
 
@@ -136,20 +150,24 @@ boolean AMComm::isBusy() {
 void AMComm::sendQuery() {
   static int count = 0;
   count++;
-    if (readyToSend && (count > 150) ) {
+    if (readyToSend && (count > 100) ) {
       send("Q");
       count = 0;
     }
 }
 
 boolean AMComm::isInTimeout() {
-    //serial->println("Check timeout");
+    #ifdef DEBUGAM
+    serial->println("Check timeout");
+    #endif
     if (timeoutInterval == 0) {
       return false;
     }
     if (millis() - previousMillis > timeoutInterval) {
         resetTimeout();
-        //serial->println("Now in ERR");
+        #ifdef DEBUGAM
+        serial->println("Now in ERR");
+        #endif
         return true;
     } else {
         return false; 

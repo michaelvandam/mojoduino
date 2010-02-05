@@ -35,7 +35,7 @@ class HardwareSerialRS485 : public HardwareSerial
 extern HardwareSerialRS485 SerialRS485;
 
 #if defined(__AVR_ATmega1280__)
-//extern HardwareSerialRS485 Serial1RS485; //Commented to save space
+extern HardwareSerialRS485 Serial1RS485;
 extern HardwareSerialRS485 Serial2RS485;
 extern HardwareSerialRS485 Serial3RS485;
 #endif

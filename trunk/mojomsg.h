@@ -2,6 +2,8 @@
 #define Mojomsg_h
 #include "mojodefs.h"
 #include <inttypes.h>
+#include <avr/pgmspace.h>
+
 class Command
 {
     public:
@@ -15,6 +17,8 @@ class Command
         void setParam(const char *paramStr);
         
         char *getReply();
+        void setReply();
+        void setReply_P(PGM_P replyStrP);
         void setReply(const char *replyStr);
         void setReply(char c);
         void setReply(long c);

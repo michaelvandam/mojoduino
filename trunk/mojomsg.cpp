@@ -47,6 +47,9 @@ void Command::setReply(const char *replyStr) {
   strcpy(reply, replyStr);
 }
 
+void Command::setReply_P(PGM_P replyStrP) {
+  strcpy_P(reply, replyStrP);
+}
 
 void Command::setReply(char c) {
   reply[0] = c;
@@ -59,6 +62,9 @@ void Command::setReply(long c) {
   strcpy(reply,buf);
 }
 
+void Command::setReply() {
+  reply[0] = '\0';
+}
 
 /***********************************************
  * MESSAGE METHODS
@@ -166,14 +172,13 @@ int8_t Message::addCommand(char* cmd, char *param) {
   else {
     cmds[cmdindex].setCmd(cmd);
     cmds[cmdindex].setParam(param);
-    cmds[cmdindex].setReply("");
+    cmds[cmdindex].setReply();
   }
   cmdindex++;
   return NOERR;
 }
 
 char * Message::reply() {
-  //char reply[REPLYLEN];
   int index = 0;
   strcpy(response, getHeader());
 
@@ -189,7 +194,6 @@ char * Message::reply() {
   index = strlen(response);
   response[index] = ENDMSG;
   response[index+1] = '\0';
-
   return response;
 }
 

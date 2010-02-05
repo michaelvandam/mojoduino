@@ -9,18 +9,15 @@
 
 void id( Command &cmd ) {
   char *newId;
-  
   newId = cmd.getParam();  //Grab the id
   if (strlen(newId) == 0)  {  // What is my id?
     cmd.setReply(mojo.getAddress());
   } else if ( !(isprint(newId[0])) || (newId[0] == BROADCASTADDY) ||  !(strlen(newId) == 1) ) {  //Id must be printable, not broadcast and not longer than 1
-    cmd.setReply(BADPARAM);
+    cmd.setReply_P(BADPARAM);
   } else {
-    cmd.setReply(newId);
     mojo.setAddress(newId[0]);
-    //Add eeprom here too!
-    //Serial.println("Set ID!");
-  }
+    cmd.setReply(newId);
+  } 
 }
 
 void baud( Command &cmd ) {
@@ -46,7 +43,7 @@ void baud( Command &cmd ) {
   
   
   if (i == BAUDRATELEN) {
-    cmd.setReply(BADPARAM);  
+    cmd.setReply_P(BADPARAM);  
   } else {
     Serial.println(baudRates[i]);
     mojo.setBaudrate(i);
@@ -66,14 +63,19 @@ void who( Command &cmd ) {
 }
 
 void annc( Command &cmd ) {
-  long t = 5;
-  t = t * mojo.getAddress();
+  long t = 30;
+  t = t * (mojo.getAddress() - '0');
   delay(t);
-  //Serial.println("Delay then announce");
   who(cmd);
+  #ifdef DEBUGMOJO
+  Serial.println("Delay then announce");
+  #endif
 }
 
 void setupDefaultCallbacks() {
+  #ifdef DEBUGMOJO
+  Serial.println("Add default callbacks");
+  #endif
   addCallback("ID", id);
   addCallback("BAUD", baud);
   addCallback("SAVBAUD", savebaud);

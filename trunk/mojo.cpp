@@ -25,7 +25,6 @@ extern "C" {
 Mojo::Mojo() {
     init();
     setSerial(Serial);
-    setAddress('a');
     loadBaudrate();
 }
 
@@ -49,11 +48,11 @@ void Mojo::init() {
 
 void Mojo::setAddress(char address) {
     addy=address;
-    eeprom_write_byte((unsigned char *)ADDRADDR, address);
+    eeprom_write_byte((unsigned char *)ADDRADDR, (unsigned char)addy);
 }
 
 void Mojo::loadAddressEEPROM() {
-  char c;
+  unsigned char c;
   c = eeprom_read_byte((unsigned char *)ADDRADDR);
   setAddress(c);  
 }
@@ -63,7 +62,11 @@ char Mojo::getAddress() {
 }
 
 void Mojo::reset() {
-    //serial->println("RESET");
+    
+    #ifdef DEBUGMOJO
+    serial->println("RESET");
+    #endif
+    
     bufferIndex = 0;
     msgBuffer[bufferIndex] = '\0';
     _messageState = _WAITING;
@@ -73,9 +76,11 @@ void Mojo::reset() {
 void Mojo::recieve() {
     char serialByte;
     
-    //serial->print("Buffer:");
-    //serial->println(msgBuffer);
-
+    #ifdef DEBUGMOJO
+    serial->print("Buffer:");
+    serial->println(msgBuffer);
+    #endif
+    
     if (serial->available()>0) {
     msgBuffer[bufferIndex] = (char)serial->read();
     serialByte = msgBuffer[bufferIndex];
@@ -91,7 +96,11 @@ void Mojo::recieve() {
     }
     
     switch(_messageState) {
+        
+        #ifdef DEBUGMOJO
         serial->println("WAITING");
+        #endif
+        
         case _WAITING:
             if (serialByte == STARTMSG) {
                 _messageState = _STARTCHAR1;
@@ -100,7 +109,9 @@ void Mojo::recieve() {
             }
             break;
         case _STARTCHAR1:
-            //serial->println("Start1");
+            #ifdef DEBUGMOJO
+            serial->println("Start1");
+            #endif
             if (serialByte == STARTMSG) {
                 _messageState = _STARTCHAR2;
                 
@@ -109,7 +120,9 @@ void Mojo::recieve() {
             }
             break;
         case _STARTCHAR2:
-            //serial->println("Start2");
+            #ifdef DEBUGMOJO
+            serial->println("Start2");
+            #endif
             if (serialByte == addy || serialByte == BROADCASTADDY) {
                 _messageState = _NEWMSG;
             } else {
@@ -117,12 +130,16 @@ void Mojo::recieve() {
             }
             break;
         case _NEWMSG:
-            //serial->println("NEW");
+            #ifdef DEBUGMOJO
+            serial->println("NEW");
+            #endif
             if (serialByte == ENDMSG)
                 _messageState = _COMPLETEMSG;
             break;
         case _COMPLETEMSG:
-            //serial->println("COMPLETE");
+            #ifdef DEBUGMOJO
+            serial->println("COMPLETE");
+            #endif
             break;
         default:
             reset();
@@ -136,9 +153,7 @@ uint8_t Mojo::messageReady() {
 }
 
 Message *Mojo::getMessage() {
-    char len;
-    len = strlen(msgBuffer);
-    msgBuffer[len-1] = '\0';
+    msgBuffer[strlen(msgBuffer)-1] = '\0';
     msg.load(msgBuffer);
     reset();
     return &msg;
@@ -154,6 +169,9 @@ void Mojo::dispatch() {
 }
 
 void Mojo::reply() {
+  #ifdef DEBUGMOJO
+  serial->println("Reply:");
+  #endif
   serial->print(msg.reply());
 }
 
@@ -197,6 +215,10 @@ long Mojo::getBaudrate(){
 
 void Mojo::setDeviceType(char *s) {
     strcpy(deviceType, s);
+}
+
+void Mojo::setDeviceType_P(PGM_P s) {
+    strcpy_P(deviceType, s);
 }
 
 char *Mojo::getDeviceType() {

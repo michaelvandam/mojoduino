@@ -20,19 +20,19 @@ void Hello( Command &cmd ) {
 //Callback for standby
 void cbStandby( Command &cmd ) {
   RDM.transitionTo(standby);
-  cmd.setReply(DONERESP);
+  //cmd.setReply(DONERESP);
 }
 
 //Callback for running
 void cbRun( Command &cmd ) {
   RDM.transitionTo(running);
-  cmd.setReply(DONERESP);
+  //cmd.setReply(DONERESP);
 }
 
 //Callback loading
 void cbLoad( Command &cmd ) {
   RDM.transitionTo(loading);
-  cmd.setReply(DONERESP);
+  //cmd.setReply(DONERESP);
 }
 
 void setup()
