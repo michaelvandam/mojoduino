@@ -13,12 +13,16 @@ const char UPRESP[] PROGMEM = "UP";
 const char DOWNRESP[] PROGMEM = "DOWN";
 const char XERR[] PROGMEM = "?XERR";
 const char ZERR[] PROGMEM = "?ZERR";
-const char ON[] PROGMEM = "ON";
-const char OFF[] PROGMEM = "OFF";
 const long MOTORCTRLTIMEOUT = 10000;
 
 int upPin = 31;
 int downPin = 29;
+int tranPin = 27;
+int coolPin = 25;
+int mixPin = 6;
+int statusPin = 13;
+
+int mixSpeed = 0;
 
 enum XPosition {HOME, POSITION1, POSITION2, POSITION3};
 
@@ -30,10 +34,10 @@ ZPosition zpos = DOWN;
 AMComm MotorCtrl = AMComm(Serial3RS485, '1'); //Device at address '1'
 //AMComm TempCtrl = AMComm(Serial3RS485, '2');  //Device at address '2'
 
-Button upSensor = Button(54,PULLUP);
-Button downSensor = Button(55,PULLUP);
+Button upSensor = Button(55,PULLUP);
+Button downSensor = Button(54,PULLUP);
 
-TimedAction zTimeout = TimedAction(8000,gozerror);
+TimedAction zTimeout = TimedAction(10000,gozerror);
 
 /* 
 * PRM States
@@ -44,7 +48,7 @@ State XMoving = State(xstartmove, xmoving, movecomplete);
 State XError = State(xerror);
 
 //Z Motion State
-State ZMoving = State(zstartmove, zmoving, movecomplete);
+State ZMoving = State(zstartmove, zmoving, zmovecomplete);
 State ZError = State(standby);
 
 State XStartup = State(initialX);
@@ -120,17 +124,17 @@ boolean isPSTR(const char *param, PGM_P pstr) {
 void cbCool( Command &cmd ) {
   if (isEmpty(cmd.getParam())) {
     if (PRMCool.isInState(CoolOn)) 
-      cmd.setReply_P(ON);
+      cmd.setReply_P(ONRESP);
     else
-      cmd.setReply_P(OFF);
+      cmd.setReply_P(OFFRESP);
   } else {
-    if( isPSTR(cmd.getParam(), ON) ) {
+    if( isPSTR(cmd.getParam(), ONRESP) ) {
       //Turn On Cool
-      cmd.setReply_P(ON);
+      cmd.setReply_P(ONRESP);
       PRMCool.transitionTo(CoolOn);
-    } else if( isPSTR(cmd.getParam(), OFF)) {
+    } else if( isPSTR(cmd.getParam(), OFFRESP)) {
       //Turn Off Cool
-      cmd.setReply_P(OFF);
+      cmd.setReply_P(OFFRESP);
       PRMCool.transitionTo(CoolOff);
     } else {
       cmd.setReply_P(BADPARAM);
@@ -144,18 +148,18 @@ void cbTransfer( Command &cmd ) {
   const char *result;
   if (isEmpty(cmd.getParam())) {
     if (PRMTransfer.isInState(TransferOn)) 
-      cmd.setReply_P(ON);
+      cmd.setReply_P(ONRESP);
     else
-      cmd.setReply_P(OFF);
+      cmd.setReply_P(OFFRESP);
   } else {
     cmd.setReply(cmd.getParam());
-    if( isPSTR(cmd.getParam(), ON) ) {
+    if( isPSTR(cmd.getParam(), ONRESP) ) {
       //Turn On Cool
-      cmd.setReply_P(ON);
+      cmd.setReply_P(ONRESP);
       PRMTransfer.transitionTo(TransferOn);
-    } else if( isPSTR(cmd.getParam(), OFF)) {
+    } else if( isPSTR(cmd.getParam(), OFFRESP)) {
       //Turn Off Cool
-      cmd.setReply_P(OFF);
+      cmd.setReply_P(OFFRESP);
       PRMTransfer.transitionTo(TransferOff);
     } else {
       cmd.setReply_P(BADPARAM);
@@ -230,6 +234,47 @@ void cbMoveZ( Command &cmd ) {
     }
 }
 
+
+void cbReset( Command &cmd ) {
+
+    MotorCtrl.send("T");
+    //Serial.println("Terminate active commands");  
+    MotorCtrl.send("ar5073R");
+    //Serial.println("Restart driver");
+    delay(1000);
+    zpos = DOWN;
+    moveToZPosition();
+    //Serial.println("Lower Z");
+    delay(4000);
+    if(downSensor.isPressed()) {
+      xpos = HOME;
+      moveToXPosition();
+      //Serial.println("Home X");
+      cmd.setReply_P(DONERESP);    
+    } else {
+      cmd.setReply_P(ZERR);    
+    }
+   
+}
+
+//Mix Callbacks
+void cbMix( Command &cmd ) {
+  char *param = cmd.getParam();
+  if (isEmpty(param)) { 
+    itoa(mixSpeed, param, 10);
+    cmd.setReply(param);
+  } else {
+     int v = atoi(cmd.getParam());
+     if ((v < 0)||(v>255)) {
+       cmd.setReply_P(BADPARAM);
+     } else {
+     mixSpeed = v;
+     analogWrite(mixPin, mixSpeed);
+     cmd.setReply(param);
+     } 
+   }
+}
+
 void setup()
 {
   
@@ -247,6 +292,8 @@ void setup()
   addCallback("PZ", cbMoveZ);
   addCallback("COOL",  cbCool);
   addCallback("TRN",  cbTransfer);
+  addCallback("MIX",  cbMix);
+  addCallback("RST",  cbReset);
   
   
   /*** ATTACH DEFAULT CALLBACKS ***/
@@ -262,9 +309,9 @@ void setup()
     pinMode(i,OUTPUT);
     digitalWrite(i,LOW);
   }
-  pinMode(13,OUTPUT);
-  pinMode(23,OUTPUT);
-  pinMode(25,OUTPUT);
+  pinMode(mixPin,OUTPUT);
+  pinMode(statusPin,OUTPUT);
+  pinMode(coolPin,OUTPUT);
   pinMode(upPin,OUTPUT);
   digitalWrite(upPin,HIGH);
   pinMode(downPin,OUTPUT);
@@ -336,6 +383,11 @@ void zmoving() {
       }
     }
     
+}
+
+void zmovecomplete() {
+  delay(200);
+  digitalWrite(downPin,LOW);
 }
 
 void movecomplete() {
@@ -416,22 +468,22 @@ void xerror() {
 
 void transferon() {
   // Turn transfer valve on
-  digitalWrite(25,HIGH);
+  digitalWrite(tranPin,HIGH);
 }
 
 void transferoff() {
   // Turn transfer valve off
-  digitalWrite(25,LOW);
+  digitalWrite(tranPin,LOW);
 }
 
 void coolon() {
-  // Turn transfer valve on
-  digitalWrite(23,HIGH);
+  // Turn Cool valve on
+  digitalWrite(coolPin,HIGH);
 }
 
 void cooloff() {
-  // Turn transfer valve off
-  digitalWrite(23,LOW);
+  // Turn cool valve off
+  digitalWrite(coolPin,LOW);
 }
 
 void standby() {
