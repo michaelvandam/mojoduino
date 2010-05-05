@@ -116,6 +116,11 @@ void AMComm::send(char *str) {
     buf[0] = '/';
     buf[1] = address;
     buf[2] = '\0';
+    
+    #ifdef DEBUGAM
+    Serial.println(str);
+    #endif
+    
     strcat(buf, str);
     serial->println(buf);
     serial->println();

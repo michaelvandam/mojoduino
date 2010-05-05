@@ -5,6 +5,7 @@
 #include "HardwareSerialRS485.h"
 #include "AMComm.h"  // AllMotion communication control library
 
+#define MAXTEMP 300.0
 /*
 * PRM Parameters
 */
@@ -13,15 +14,21 @@ const char UPRESP[] PROGMEM = "UP";
 const char DOWNRESP[] PROGMEM = "DOWN";
 const char XERR[] PROGMEM = "?XERR";
 const char ZERR[] PROGMEM = "?ZERR";
+const char MAX[] PROGMEM = "MAX";
 const long MOTORCTRLTIMEOUT = 10000;
 
-int upPin = 31;
-int downPin = 29;
-int tranPin = 27;
-int coolPin = 25;
+int upPin = 45;
+int downPin = 47;
+int tranPin = 41;
+int coolPin = 43;
 int mixPin = 6;
 int statusPin = 13;
+int ledPin = 13;
+int heaterPin = 5;
+int therm1 = 8;
+int therm2 = 2;
 
+float setPoint = 0;
 int mixSpeed = 0;
 
 enum XPosition {HOME, POSITION1, POSITION2, POSITION3};
@@ -65,6 +72,10 @@ State TransferOff = State(transferoff, standby, standby);
 State CoolOn = State(coolon, standby, standby);
 State CoolOff = State(cooloff, standby, standby);
 
+//Heater States
+State HeaterStandby = State(goheateroff, gostandby, gostandby);
+State HeaterOn = State(goheater);
+State HeaterOverride = State(goheateroverride);
 
 /*
 * Up Down buttons
@@ -79,7 +90,7 @@ FSM PRMMotionX = FSM(XStartup);
 FSM PRMMotionZ = FSM(ZStartup);
 FSM PRMTransfer = FSM(TransferOff);
 FSM PRMCool = FSM(CoolOff);
-
+FSM PRMHeater = FSM(HeaterStandby);
 
 /*
 * Parsing Functions
@@ -275,6 +286,82 @@ void cbMix( Command &cmd ) {
    }
 }
 
+//Heater callbacks
+void cbHeater( Command &cmd ) {
+  char* param = cmd.getParam();
+  if (isEmpty(param)) {
+      if ( PRMHeater.isInState(HeaterOn) ) {
+        cmd.setReply_P(ONRESP);
+      } else if(PRMHeater.isInState(HeaterOverride)) {
+        cmd.setReply_P(MAX);
+      } else {
+        cmd.setReply_P(OFFRESP);
+      }
+  } else {
+    if (isPSTR(param, ONRESP)) {
+        PRMHeater.transitionTo(HeaterOn);
+        cmd.setReply_P(ONRESP);
+     } else if (isPSTR(param, OFFRESP)) {
+        PRMHeater.transitionTo(HeaterStandby);
+        cmd.setReply_P(OFFRESP);
+     } else if (isPSTR(param, MAX)) {
+        PRMHeater.transitionTo(HeaterOverride);
+        cmd.setReply_P(MAX);
+     } else {
+       PRMHeater.transitionTo(HeaterStandby);
+       cmd.setReply_P(BADPARAM);
+     }
+  }
+}
+
+
+void getTempStr(Command &cmd, int tmppin) {
+  char *param = cmd.getParam();
+  char reply[10];
+  reply[0] = '\0';
+  
+  if (isEmpty(param)) {
+    
+    floatToStr(getTemp(tmppin), reply, 2);
+    cmd.setReply(reply);
+  
+} else {
+    cmd.setReply_P(BADPARAM);
+  }
+
+}
+
+void cbGetTemp( Command &cmd ) {
+    getTempStr(cmd, therm1);
+}
+
+
+void cbGetTemp2( Command &cmd ) {
+  getTempStr(cmd, therm2);
+}
+
+
+void cbSetpoint( Command &cmd ) {
+  char* param = cmd.getParam();
+  double tmpSetpt;
+  
+  if (isEmpty(param)) {
+    char buf[10];
+    floatToStr(setPoint, buf, 2);
+    cmd.setReply(buf);
+  } else {
+    tmpSetpt = atof(param);  
+    if (tmpSetpt < MAXTEMP && tmpSetpt > 0){
+        setPoint = tmpSetpt;
+        cmd.setReply(param);
+    } else {
+        cmd.setReply_P(BADPARAM);
+    } 
+  }
+}
+
+
+
 void setup()
 {
   
@@ -294,12 +381,19 @@ void setup()
   addCallback("TRN",  cbTransfer);
   addCallback("MIX",  cbMix);
   addCallback("RST",  cbReset);
-  
+  addCallback("TMPC", cbHeater);
+  addCallback("SETP", cbSetpoint);  
+  addCallback("TMP", cbGetTemp);
+  addCallback("TMP2", cbGetTemp2);
+  addCallback("COOL",  cbCool);
+
   
   /*** ATTACH DEFAULT CALLBACKS ***/
   setupDefaultCallbacks(); 
   
   /*** ADDITIONAL PRM SETUP CODE ***/
+  analogReference(INTERNAL);
+  
   Serial3RS485.begin(9600);
   Serial3RS485.setControlPin(3);
   
@@ -309,6 +403,8 @@ void setup()
     pinMode(i,OUTPUT);
     digitalWrite(i,LOW);
   }
+
+  pinMode(ledPin,OUTPUT);
   pinMode(mixPin,OUTPUT);
   pinMode(statusPin,OUTPUT);
   pinMode(coolPin,OUTPUT);
@@ -316,6 +412,9 @@ void setup()
   digitalWrite(upPin,HIGH);
   pinMode(downPin,OUTPUT);
   digitalWrite(downPin,HIGH);
+  pinMode(heaterPin,OUTPUT);
+  digitalWrite(heaterPin,LOW);
+
 } 
 
 
@@ -325,6 +424,7 @@ void loop() {
   PRMMotionZ.update(); // Run PRM Y Motion
   PRMCool.update(); // Run PRM Cooling Valve
   PRMTransfer.update(); //Run PRM TransferValve
+  PRMHeater.update();
 }
 
 
@@ -404,8 +504,8 @@ void motionstandby() {
 void moveToXPosition() {
   switch(xpos) {
     case HOME:
-      //Serial.println("Go Home!");
-      MotorCtrl.send("f1m65h20aE42680aC50au1000n8V1200000Z80000000R");
+      //Serial3RS485.println("Go Home!");
+      MotorCtrl.send("f1m80h15aE42680aC50au10n8V600000Z80000000R");
       //Send command to home
       break;
     case POSITION1:
@@ -494,3 +594,91 @@ void standby() {
  void gozerror() {
    PRMMotionZ.transitionTo(ZError);
  }
+ 
+
+void goheateroff() {
+  digitalWrite(heaterPin, LOW);   
+}
+
+void goheater() { 
+  if (getTemp(therm1) < setPoint - 1) {
+      digitalWrite(heaterPin, HIGH);
+  } else {
+      digitalWrite(heaterPin, LOW);
+  }
+}
+
+void goheateroverride() {
+  if (getTemp(therm1) < MAXTEMP) {
+    digitalWrite(heaterPin, HIGH);
+  } else {
+    digitalWrite(heaterPin, LOW);
+  }
+}
+
+void gostandby() {  
+  //Nothing
+}
+ 
+float getTemp(int pin) {
+      float sumTemp = 0;
+      float tmpTemp = 0;
+      for (int i = 0; i < 10; i++) {
+        tmpTemp = (analogRead(pin) / 1024.0 * 2.5 * 100);     
+        sumTemp = sumTemp + tmpTemp;
+      }
+      //Serial.print(pin);
+      //Serial.print(':');
+      //Serial.println(sumTemp/8.0);
+      return sumTemp / 10.0 - 0;
+}
+
+char *floatToStr(double number, char* buff, uint8_t digits) 
+{ 
+  // Handle negative numbers
+  char *buf = buff;
+  if (number < 0.0)
+  {
+     *buf++=('-');
+     number = -number;
+  }
+
+  // Round correctly so that print(1.999, 2) prints as "2.00"
+  double rounding = 0.5;
+  for (uint8_t i=0; i<digits; ++i)
+    rounding /= 10.0;
+  
+  number += rounding;
+
+  // Extract the integer part of the number and print it
+  unsigned long int_part = (unsigned long)number;
+  double remainder = number - (double)int_part;
+  ltoa(int_part,buf,10);
+  
+  
+  while(*buf!='\0') {
+    buf++;
+   //Serial.println("Not in here");
+  } //Move to end of buffer
+  
+  
+  // Print the decimal point, but only if there are digits beyond
+  if (digits > 0) {
+    *buf++='.'; 
+    *buf='\0';  
+  }
+  
+  // Extract digits from the remainder one at a time
+  while (digits-- > 0)
+  {
+    //Serial.println(digits,DEC);
+    remainder *= 10.0;
+    int toPrint = int(remainder);
+    itoa(toPrint,buf,10);
+    buf++;
+    remainder -= toPrint; 
+  } 
+    //Terminate string
+  return buff;
+}
+

@@ -30,7 +30,8 @@ enum Reagent{
   REAGENT1=1,
   REAGENT2=2,
   REAGENT3=3,
-  REAGENT4=4
+  REAGENT4=4,
+  ALL=5
 };
 
 Reagent SelectedReagent = NONE;
@@ -106,24 +107,33 @@ void cbLoad( Command &cmd ) {
 //Callback for running
 void cbDeliver( Command &cmd ) {
   char *param = cmd.getParam();
-  int index = atoi(param);
-   if ((index <= NONE)||(index>REAGENT4)) {
-     SelectedReagent = NONE;
-     cmd.setReply_P(BADPARAM);
-   } else if (isEmpty(param)) {
-     itoa((int)SelectedReagent, param, 10);
-     cmd.setReply(param);
-   } else {
-     SelectedReagent = (Reagent)index;
-     resetDeliverValves = true;
-     RDM.transitionTo(delivering);
+  
+  if (isPSTR(param, ALLRESP)) {
+    SelectedReagent = ALL;
+    resetDeliverValves = true;
+    RDM.transitionTo(delivering);
     cmd.setReply(param);
-   }
+  } else {
+    int index = atoi(param);
+     if ((index <= NONE)||(index>REAGENT4)) {
+       SelectedReagent = NONE;
+       cmd.setReply_P(BADPARAM);
+     } else if (isEmpty(param)) {
+       itoa((int)SelectedReagent, param, 10);
+       cmd.setReply(param);
+     } else {
+       SelectedReagent = (Reagent)index;
+       resetDeliverValves = true;
+       RDM.transitionTo(delivering);
+      cmd.setReply(param);
+     }
+  }
 }
 
 //Callback for clean
 void cbClean( Command &cmd ) {
   char *param = cmd.getParam();
+
   int index = atoi(param);
    if ((index <= NONE)||(index>REAGENT4)) {
      SelectedCleanReagent = NONE;
@@ -165,6 +175,7 @@ void cbWaste( Command &cmd ) {
 
 void setup()
 {
+  
   /*** SETUP MOJO COMMUNICATOR  ***/
   mojo.setDeviceType_P(PSTR("RDM-V0.1"));
   SerialRS485.setControlPin(4);
@@ -185,6 +196,7 @@ void setup()
   for(int i=23; i<53;i=i+2) {
   pinMode(i,OUTPUT);
   digitalWrite(i,LOW);
+  
   }
   /*** ADDITIONAL RDM SETUP CODE ***/
 }
@@ -259,6 +271,13 @@ void deliverReagent() {
         break;
       case REAGENT4:
         //OPEN VALVE REAGENT4
+        digitalWrite(valve4Lower,OPEN);
+        pressurize();
+        break;
+      case ALL:
+        digitalWrite(valve1Lower,OPEN);
+        digitalWrite(valve2Lower,OPEN);
+        digitalWrite(valve3Lower,OPEN);
         digitalWrite(valve4Lower,OPEN);
         pressurize();
         break;
