@@ -1,3 +1,4 @@
+#include <EEPROM.h>
 #include <TimedAction.h>
 #include <Button.h>
 #include <FiniteStateMachine.h> 
@@ -6,6 +7,9 @@
 #include "AMComm.h"  // AllMotion communication control library
 
 #define MAXTEMP 300.0
+#define TMPOFFSETLIMIT 128
+#define TMPOFFSETEEADDRLOW 3
+#define TMPOFFSETEEADDRHIGH 4
 /*
 * PRM Parameters
 */
@@ -17,10 +21,11 @@ const char ZERR[] PROGMEM = "?ZERR";
 const char MAX[] PROGMEM = "MAX";
 const long MOTORCTRLTIMEOUT = 10000;
 
-int upPin = 45;
-int downPin = 47;
+int upPin = 47;
+int downPin = 49;
 int tranPin = 41;
 int coolPin = 43;
+int coolPin2 = 45;
 int mixPin = 6;
 int statusPin = 13;
 int ledPin = 13;
@@ -30,6 +35,7 @@ int therm2 = 2;
 
 float setPoint = 0;
 int mixSpeed = 0;
+int tmpOffset = 0;
 
 enum XPosition {HOME, POSITION1, POSITION2, POSITION3};
 
@@ -41,7 +47,7 @@ ZPosition zpos = DOWN;
 AMComm MotorCtrl = AMComm(Serial3RS485, '1'); //Device at address '1'
 //AMComm TempCtrl = AMComm(Serial3RS485, '2');  //Device at address '2'
 
-Button upSensor = Button(55,PULLUP);
+Button upSensor = Button(57,PULLUP);
 Button downSensor = Button(54,PULLUP);
 
 TimedAction zTimeout = TimedAction(10000,gozerror);
@@ -91,6 +97,18 @@ FSM PRMMotionZ = FSM(ZStartup);
 FSM PRMTransfer = FSM(TransferOff);
 FSM PRMCool = FSM(CoolOff);
 FSM PRMHeater = FSM(HeaterStandby);
+
+
+
+void writeTempOffset() {
+  EEPROM.write(TMPOFFSETEEADDRLOW, tmpOffset);
+  EEPROM.write(TMPOFFSETEEADDRHIGH, tmpOffset >> 8);  
+}
+
+void loadTempOffset() {
+  tmpOffset = (int)((EEPROM.read(TMPOFFSETEEADDRHIGH) << 8) | (EEPROM.read(TMPOFFSETEEADDRLOW)));
+}
+
 
 /*
 * Parsing Functions
@@ -153,6 +171,24 @@ void cbCool( Command &cmd ) {
   }
   
 }
+
+void cbTempOffset( Command &cmd) {
+  char buf[5];
+  if (isEmpty(cmd.getParam())) {
+    ltoa(tmpOffset,buf,10);
+    cmd.setReply(buf);
+  } else {
+     int tmp = atoi(cmd.getParam());
+     if (tmp < TMPOFFSETLIMIT && tmp >= -TMPOFFSETLIMIT) {
+       tmpOffset = tmp;
+       writeTempOffset();
+       cmd.setReply(cmd.getParam());
+     } else {
+       cmd.setReply_P(BADPARAM);
+     }
+   }
+} 
+       
 
 //Transfer Callbacks
 void cbTransfer( Command &cmd ) {
@@ -373,6 +409,7 @@ void setup()
   SerialRS485.setControlPin(4);
   mojo.loadBaudrateEEPROM(); //Load baudrate from EEPROM
   mojo.loadAddressEEPROM(); //Load address from EEPROM
+  loadTempOffset();
   
   /*** ATTACH CALLBACKS HERE ***/
   addCallback("PX", cbMoveX);
@@ -386,7 +423,7 @@ void setup()
   addCallback("TMP", cbGetTemp);
   addCallback("TMP2", cbGetTemp2);
   addCallback("COOL",  cbCool);
-
+  addCallback("TOFF", cbTempOffset);
   
   /*** ATTACH DEFAULT CALLBACKS ***/
   setupDefaultCallbacks(); 
@@ -505,22 +542,22 @@ void moveToXPosition() {
   switch(xpos) {
     case HOME:
       //Serial3RS485.println("Go Home!");
-      MotorCtrl.send("f1m80h15aE42680aC50au10n8V600000Z80000000R");
+      MotorCtrl.send("f1m85h20aE42680aC50au1000n8V30000Z800000R");
       //Send command to home
       break;
     case POSITION1:
       //Serial.println("Go P1!");
-      MotorCtrl.send("V1200000A0R");
+      MotorCtrl.send("V30000A0R");
       //Send command to goto pos 1
       break;
     case POSITION2:
       //Serial.println("Go P2!");
-      MotorCtrl.send("V1200000A33500R");
+      MotorCtrl.send("V30000A33150R");
       //Send command to goto pos 2
       break;
     case POSITION3:
       //Serial.println("Go P3!");
-      MotorCtrl.send("V1200000A67000R");
+      MotorCtrl.send("V30000A66600R");
       //Send command to goto pos 3
       break;
     default:
@@ -579,11 +616,13 @@ void transferoff() {
 void coolon() {
   // Turn Cool valve on
   digitalWrite(coolPin,HIGH);
+  digitalWrite(coolPin2,HIGH);
 }
 
 void cooloff() {
   // Turn cool valve off
   digitalWrite(coolPin,LOW);
+  digitalWrite(coolPin2,LOW);
 }
 
 void standby() {
@@ -630,7 +669,7 @@ float getTemp(int pin) {
       //Serial.print(pin);
       //Serial.print(':');
       //Serial.println(sumTemp/8.0);
-      return sumTemp / 10.0 - 0;
+      return sumTemp / 10.0 + tmpOffset;
 }
 
 char *floatToStr(double number, char* buff, uint8_t digits) 
