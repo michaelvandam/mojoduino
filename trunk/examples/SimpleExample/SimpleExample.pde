@@ -1,12 +1,17 @@
 #include <FiniteStateMachine.h>
 #include "mojo.h"
 
+#define LOWVALVE 23
+#define HIGHVALVE 54
+
 int ledPin = 13;
 
 //RDM States
 State standby = State(gostandby);
 State running = State(gorun);
 State loading = State(goloading);
+
+int valveStates=0;
 
 //Create RDM FSM
 FSM RDM = FSM(standby);
@@ -62,7 +67,6 @@ void loop() {
 
 
 /*** UTILITY FUNCTIONS FOR FSM ***/
-void gostandby() {  digitalWrite(ledPin, LOW); }
 
 void gorun() {  digitalWrite(ledPin, HIGH); }
 
@@ -83,5 +87,22 @@ void goloading() {
     }
 }
  
-   
-   
+void gostandby() {
+    for(int i=LOWVALVE;i<HIGHVALVE;i=i+2)  {
+      digitalWrite(i,LOW); 
+    }
+} 
+/*  
+void govalves() {
+  for(int i =LOWVALVE;i<HIGHVALVE;i+2) {
+    if (((valveStates << (i-LOWVALVE) ) | 1) == 1)
+      digitalWrite(i,HIGH);
+    else
+      digitalWrite(i,LOW);  
+  }
+}
+
+void gostandby() {
+    for(int i =LOWVALVE;i<HIGHVALVE;i+2) 
+      digitalWrite(i,LOW); 
+}  */
