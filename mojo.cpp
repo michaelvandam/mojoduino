@@ -73,7 +73,7 @@ void Mojo::reset() {
     
 }
 
-void Mojo::recieve() {
+boolean Mojo::recieve() {
     char serialByte;
     
     #ifdef DEBUGMOJO
@@ -86,13 +86,13 @@ void Mojo::recieve() {
     serialByte = msgBuffer[bufferIndex];
     msgBuffer[++bufferIndex]='\0';    
     } else { 
-    return;
+    return false;
     }
     
     
     if (bufferIndex >= (MAXMSGSIZE -1)) {
     reset();
-    return;
+    return true;
     }
     
     switch(_messageState) {
@@ -145,6 +145,7 @@ void Mojo::recieve() {
             reset();
             break;
     }
+    return true;
 }
 
 uint8_t Mojo::messageReady() {
@@ -177,7 +178,8 @@ void Mojo::reply() {
 
 
 void Mojo::run() {
-  recieve();
+  while(recieve())
+    continue;
   if (messageReady()) {  
     getMessage();
     dispatch();

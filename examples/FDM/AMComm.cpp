@@ -102,8 +102,8 @@ boolean AMComm::receiveMessage() {
           #ifdef DEBUGAM
           Serial.println("Need to send Query");
           #endif
-          receive();
           sendQuery();
+          receive();
           //Dont return?
       }
       
@@ -134,21 +134,20 @@ char AMComm::getStatus() {
 }
 
 void AMComm::readyForNext() {
-    messageState = BEGIN;
+    serial->flush();
+    reset();
 }
 
 void AMComm::init() {
-    messageState = BEGIN;
-    status = NULL;
-    readyToSend = true;
+    reset();
     timeoutInterval = 0;
+    serial->flush();
 }
 
 void AMComm::reset() {
     messageState = BEGIN;
     status = NULL;
-    serial->flush();
-
+    readyToSend = true;
 }
 
 
@@ -199,7 +198,7 @@ void AMComm::sendQuery() {
   Serial.println("*In Send Query");
   #endif
   count++;
-  if (readyToSend && (count > 5) ) {
+  if (readyToSend && (count > 0) ) {
     send("Q");
     count = 0;
     #ifdef DEBUGAM

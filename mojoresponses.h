@@ -11,6 +11,7 @@ const char TRUERESP[] PROGMEM = "TRUE";
 const char FALSERESP[] PROGMEM = "FALSE";
 const char ONRESP[] PROGMEM = "ON";
 const char OFFRESP[] PROGMEM = "OFF";
+const char ALLRESP[] PROGMEM = "ALL";
 const char BUSYRESP[] PROGMEM = "BUSY";
 const char OPENPARAM[] PROGMEM = "OPEN";
 const char CLOSEPARAM[] PROGMEM = "CLOSE";

@@ -15,6 +15,8 @@ const char DOWNRESP[] PROGMEM = "DOWN";
 const char XERR[] PROGMEM = "?XERR";
 const char YERR[] PROGMEM = "?YERR";
 const char ZERR[] PROGMEM = "?ZERR";
+const char SYRERR[] PROGMEM = "?SYRERR";
+const char READY[] PROGMEM = "READY";
 const char MAX[] PROGMEM = "MAX";
 const char HOME[] PROGMEM = "HOME";
 const long MOTORCTRLTIMEOUT = 10000;
@@ -31,11 +33,14 @@ int downSensorPin = 54;
 
 unsigned long xpos = 0;
 unsigned long ypos = 0;
+char syringecmd[64];
 enum ZPosition {UP, DOWN, ZERROR};
 ZPosition zpos = UP;
 
 AMComm MotorCtrlX = AMComm(Serial3RS485, '1'); //Device at address '1'
 AMComm MotorCtrlY = AMComm(Serial3RS485, '2');  //Device at address '2'
+AMComm SyringeCtrl = AMComm(Serial2RS485, '1');  //Device at address '2'
+
 
 Button upSensor = Button(upSensorPin,PULLUP);
 Button downSensor = Button(downSensorPin,PULLUP);
@@ -47,21 +52,27 @@ TimedAction zTimeout = TimedAction(10000,gozerror);
 */
 
 //X Motion State
+State XStartup = State(initialX);
 State XMoving = State(moveToXPosition, xmoving, movecomplete);
 State XError = State(xerror);
 
+
 //Y Motion State
+State YStartup = State(initialY);
 State YMoving = State(moveToYPosition, ymoving, movecomplete);
 State YError = State(yerror);
 
 //Z Motion State
+State ZStartup = State(initialZ);
 State ZMoving = State(moveToZPosition, zmoving, movecomplete);
 State ZFree = State(moveToZPosition, zmoving, zmovecomplete);
 State ZError = State(standby);
 
-State XStartup = State(initialX);
-State YStartup = State(initialY);
-State ZStartup = State(initialZ);
+
+//Syringe Motion State
+State SyringeStartup = State(initialSyringe);
+State SyringeMoving = State(syringesend, syringemoving, movecomplete);
+State SyringeError = State(syringeerror);
 
 // Motion Standby States
 State MotionStandby = State(motionstandby);
@@ -72,6 +83,7 @@ State MotionStandby = State(motionstandby);
 FSM PRMMotionX = FSM(XStartup);
 FSM PRMMotionY = FSM(YStartup);
 FSM PRMMotionZ = FSM(ZStartup);
+FSM Syringe = FSM(SyringeStartup);
 
 /*
 * Parsing Functions
@@ -148,7 +160,6 @@ void cbMoveX( Command &cmd ) {
            cmd.setReply(param);
             xpos = pos;
             PRMMotionX.transitionTo(XMoving);
-            cmd.setReply_P(BUSYRESP);
           } else {
             cmd.setReply_P(BADPARAM);
           }
@@ -184,7 +195,6 @@ void cbMoveY( Command &cmd ) {
            cmd.setReply(param);
             ypos = pos;
             PRMMotionY.transitionTo(YMoving);
-            cmd.setReply_P(BUSYRESP);
           } else {
             cmd.setReply_P(BADPARAM);
           }
@@ -228,6 +238,25 @@ void cbMoveZ( Command &cmd ) {
 }
 
 
+//Callback Syringe
+void cbSyringe( Command &cmd ) {
+  // Read param - determine postion then go to moving state!
+    char *param = cmd.getParam();
+    if (Syringe.isInState(SyringeMoving)) {
+      cmd.setReply_P(BUSYRESP);
+    } else if (isEmpty(param)) {  // Return current position
+         if (Syringe.isInState(SyringeError)) {
+           cmd.setReply_P(SYRERR);
+         } else {
+           cmd.setReply_P(READY);
+         }
+    } else { // Run syringe command
+            strcpy(syringecmd, param);
+            Syringe.transitionTo(SyringeMoving);
+            cmd.setReply(param);
+    }
+}
+
 void cbReset( Command &cmd ) {
 
     MotorCtrlX.send("T");
@@ -267,6 +296,7 @@ void setup()
   addCallback("PX", cbMoveX);
   addCallback("PZ", cbMoveZ);
   addCallback("PY", cbMoveY);
+  addCallback("SYR", cbSyringe);
 
   /*** ATTACH DEFAULT CALLBACKS ***/
   setupDefaultCallbacks(); 
@@ -276,6 +306,9 @@ void setup()
   
   Serial3RS485.begin(9600);
   Serial3RS485.setControlPin(3);
+  Serial2RS485.begin(38400);
+  Serial2RS485.setControlPin(2);
+  
   
   MotorCtrlX.setTimeout(MOTORCTRLTIMEOUT);  //Set timeout to 5sec
   MotorCtrlY.setTimeout(MOTORCTRLTIMEOUT);  //Set timeout to 5sec
@@ -293,11 +326,16 @@ void setup()
 } 
 
 
-void loop() {    
+void loop() {  
+    #ifdef DEBUGMTR
+    //Serial.println("***Receive Mojo MSG");
+    #endif
+    mojo.run(); // Run mojo communicator 
     PRMMotionX.update(); // Run PRM X Motion
     PRMMotionY.update(); // Run PRM X Motion
     PRMMotionZ.update(); // Run PRM Y Motion
-    mojo.run(); // Run mojo communicator 
+    Syringe.update();
+    
 }
 
 
@@ -431,6 +469,41 @@ void ymoving() {
      
 }
 
+void syringesend() {
+  SyringeCtrl.send(syringecmd);
+}
+
+void syringemoving() {
+    #ifdef DEBUGMTR
+    Serial.println(">>>Syringe is Moving");
+    #endif
+      if (SyringeCtrl.receiveMessage()) {
+        #ifdef DEBUGMTR
+         Serial.println("Syringe Message Ready");
+        #endif
+       if (SyringeCtrl.isBusy()==false) {
+          #ifdef DEBUGMTR         
+          Serial.println("Syringe Not Busy");
+          Serial.println("Reset Syringe");
+          #endif
+          SyringeCtrl.readyForNext();
+          Syringe.transitionTo(MotionStandby);
+        }
+        #ifdef DEBUGMTR 
+        else {                    
+             Serial.println("Syringe Busy");             
+        }
+        #endif
+      }
+
+      if (SyringeCtrl.isInTimeout()) {
+        #ifdef DEBUGMTR          
+        Serial.println("X Timeout!");
+        #endif
+        SyringeCtrl.readyForNext();
+        Syringe.transitionTo(SyringeError);
+      }  
+}
 
 void zmoving() {
     if (zpos == UP) {
@@ -512,6 +585,15 @@ void initialZ() {
   }
 }
 
+
+void initialSyringe(){
+  HOMEX = true;
+  SyringeCtrl.send("YR");
+  delay(500);
+  SyringeCtrl.receiveMessage();
+  Syringe.transitionTo(SyringeMoving);  
+}
+
 void xerror() {
   //MotorCtrl.send("TR");
   // Probably send terminate here...
@@ -519,6 +601,11 @@ void xerror() {
 
 
 void yerror() {
+  //MotorCtrl.send("TR");
+  // Probably send terminate here...
+}
+
+void syringeerror() {
   //MotorCtrl.send("TR");
   // Probably send terminate here...
 }
