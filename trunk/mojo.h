@@ -23,7 +23,7 @@ class Mojo
     Mojo(HardwareSerial &S, char address);
     HardwareSerial *serial;
     void setSerial(HardwareSerial &S);
-    void recieve();
+    boolean recieve();
     uint8_t messageReady();
     Message *getMessage();
     
