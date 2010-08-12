@@ -1,9 +1,11 @@
 #include <EEPROM.h>
 #include <TimedAction.h>
 #include <Button.h>
-#include <FiniteStateMachine.h> 
+#include <FiniteStateMachine.h>
+#include <Wire.h>
 #include <mojo.h> 
 #include "HardwareSerialRS485.h"
+#include "I2CValve.h"
 #include "AMComm.h"  // AllMotion communication control library
 //#define DEBUGMTR
 /*
@@ -18,10 +20,17 @@ const char ZERR[] PROGMEM = "?ZERR";
 const char SYRERR[] PROGMEM = "?SYRERR";
 const char READY[] PROGMEM = "READY";
 const char MAX[] PROGMEM = "MAX";
-const char HOME[] PROGMEM = "HOME";
+const char MOV[]  PROGMEM = "MOVE";
+const char POS[]  PROGMEM = "POS";
+const char WAIT[] PROGMEM = "WAIT";
+
 const long MOTORCTRLTIMEOUT = 10000;
 const unsigned long MAXPOSX = 168000;
 const unsigned long MAXPOSY = 380000;
+const int MAXVALVEPOS = 6;
+
+I2CValve valve = I2CValve (0x07,10);
+
 boolean HOMEX = true;
 boolean HOMEY = true;
 
@@ -30,6 +39,10 @@ int upPin = 35;
 int downPin = 37;
 int upSensorPin = 57;
 int downSensorPin = 54;
+int airValve1 = 33;
+int airValve2 = 31;
+int airValve3 = 29;
+int airValve4 = 27;
 
 unsigned long xpos = 0;
 unsigned long ypos = 0;
@@ -108,6 +121,7 @@ boolean isValidYPosition(unsigned long pos) {
   return false;
 }
 
+    
 boolean isUp() {
   if (zpos == UP)
     return true;
@@ -257,8 +271,70 @@ void cbSyringe( Command &cmd ) {
     }
 }
 
-void cbReset( Command &cmd ) {
 
+void cbValvePosition( Command &cmd ){
+  
+  char *param = cmd.getParam();
+  int pos;
+  if (isEmpty(param)) {
+    pos = valve.getPosition();
+    itoa(pos, param, 10);
+    cmd.setReply(param);    
+  } else if (strcmp(param, "HOME")==0) {
+    valve.goHome();
+  } else {
+    if ( valve.isValidPosition(pos=atoi(param))) {
+      cmd.setReply(param);
+      valve.setPosition(pos);
+    } else {
+      cmd.setReply_P(BADPARAM);
+    }
+  }
+}
+
+
+void cbAirValve( Command &cmd  ) {
+  char *param = cmd.getParam();
+  char *cmdstr = cmd.getCmd();
+  int selectedValve;
+  
+  switch (cmdstr[2]) {
+    case '1':
+      selectedValve = airValve1;
+      break;
+    case '2':
+      selectedValve = airValve2;
+      break;
+    case '3':
+      selectedValve = airValve3;
+      break;
+    case '4':
+      selectedValve = airValve4;
+      break;
+    default:
+      break;
+  }
+  
+  if (isEmpty(param)) {
+    if (digitalRead(selectedValve)==HIGH) {
+        cmd.setReply_P(ONRESP);
+    } else {
+        cmd.setReply_P(OFFRESP);
+    }
+  } else {
+    if (isPSTR(param,ONRESP)) {
+      digitalWrite(selectedValve,HIGH);
+      cmd.setReply_P(ONRESP);
+    } else if (isPSTR(param,OFFRESP)) {
+      digitalWrite(selectedValve,LOW);
+      cmd.setReply_P(OFFRESP);
+    } else {
+      cmd.setReply_P(BADPARAM);
+    }
+  }
+}
+
+void cbReset( Command &cmd ) {
     MotorCtrlX.send("T");
     //Serial.println("Terminate active commands");  
     MotorCtrlX.send("ar5073R");
@@ -280,6 +356,8 @@ void cbReset( Command &cmd ) {
    
 }
 
+
+
 void setup()
 {
   
@@ -297,12 +375,27 @@ void setup()
   addCallback("PZ", cbMoveZ);
   addCallback("PY", cbMoveY);
   addCallback("SYR", cbSyringe);
+  addCallback("VP", cbValvePosition);
+  addCallback("AV1", cbAirValve);
+  addCallback("AV2", cbAirValve);
+  addCallback("AV3", cbAirValve);
+  addCallback("AV4", cbAirValve);   
 
   /*** ATTACH DEFAULT CALLBACKS ***/
   setupDefaultCallbacks(); 
   
   /*** ADDITIONAL PRM SETUP CODE ***/
   analogReference(INTERNAL);
+  
+  /*** SETUP COMMUNICATION ***/
+  Wire.begin();   //Start Wire library as I2C Master 
+  TWBR = ((F_CPU / 32000l) - 16) / 2;
+    /*** Turn off Pullup Resistors ***/
+  
+  pinMode(20,INPUT);
+  digitalWrite(20,LOW);
+  pinMode(21,INPUT);
+  digitalWrite(21,LOW);
   
   Serial3RS485.begin(9600);
   Serial3RS485.setControlPin(3);
@@ -614,7 +707,7 @@ void syringeerror() {
    zpos=ZERROR;
    PRMMotionZ.transitionTo(ZError);
  }
- 
+
 void standby() {  
   //Nothing
 }
