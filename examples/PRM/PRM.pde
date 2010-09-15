@@ -22,8 +22,10 @@ const char MAX[] PROGMEM = "MAX";
 const long MOTORCTRLTIMEOUT = 10000;
 
 int upPin = 47;
+int wastePin = 51;
 int downPin = 49;
 int tranPin = 41;
+int auxPin = 39;
 int coolPin = 43;
 int coolPin2 = 45;
 int mixPin = 6;
@@ -78,6 +80,14 @@ State TransferOff = State(transferoff, standby, standby);
 State CoolOn = State(coolon, standby, standby);
 State CoolOff = State(cooloff, standby, standby);
 
+//AUX States
+State AuxOn = State(auxon, standby, standby);
+State AuxOff = State(auxoff, standby, standby);
+
+//Waste States
+State WasteOn = State(wasteon, standby, standby);
+State WasteOff = State(wasteoff, standby, standby);
+
 //Heater States
 State HeaterStandby = State(goheateroff, gostandby, gostandby);
 State HeaterOn = State(goheater);
@@ -97,7 +107,8 @@ FSM PRMMotionZ = FSM(ZStartup);
 FSM PRMTransfer = FSM(TransferOff);
 FSM PRMCool = FSM(CoolOff);
 FSM PRMHeater = FSM(HeaterStandby);
-
+FSM PRMAux = FSM(AuxOff);
+FSM PRMWaste = FSM(WasteOn);
 
 
 void writeTempOffset() {
@@ -188,7 +199,54 @@ void cbTempOffset( Command &cmd) {
      }
    }
 } 
-       
+
+
+void cbWaste( Command &cmd ) {
+  const char *result;
+  if (isEmpty(cmd.getParam())) {
+    if (PRMWaste.isInState(WasteOn)) 
+      cmd.setReply_P(ONRESP);
+    else
+      cmd.setReply_P(OFFRESP);
+  } else {
+    cmd.setReply(cmd.getParam());
+    if( isPSTR(cmd.getParam(), ONRESP) ) {
+      //Turn On Cool
+      cmd.setReply_P(ONRESP);
+      PRMWaste.transitionTo(WasteOn);
+    } else if( isPSTR(cmd.getParam(), OFFRESP)) {
+      //Turn Off Cool
+      cmd.setReply_P(OFFRESP);
+      PRMWaste.transitionTo(WasteOff);
+    } else {
+      cmd.setReply_P(BADPARAM);
+    }
+  } 
+}       
+
+//Aux Callbacks
+void cbAux( Command &cmd ) {
+  const char *result;
+  if (isEmpty(cmd.getParam())) {
+    if (PRMAux.isInState(AuxOn)) 
+      cmd.setReply_P(ONRESP);
+    else
+      cmd.setReply_P(OFFRESP);
+  } else {
+    cmd.setReply(cmd.getParam());
+    if( isPSTR(cmd.getParam(), ONRESP) ) {
+      //Turn On Cool
+      cmd.setReply_P(ONRESP);
+      PRMAux.transitionTo(AuxOn);
+    } else if( isPSTR(cmd.getParam(), OFFRESP)) {
+      //Turn Off Cool
+      cmd.setReply_P(OFFRESP);
+      PRMAux.transitionTo(AuxOff);
+    } else {
+      cmd.setReply_P(BADPARAM);
+    }
+  } 
+}       
 
 //Transfer Callbacks
 void cbTransfer( Command &cmd ) {
@@ -416,6 +474,8 @@ void setup()
   addCallback("PZ", cbMoveZ);
   addCallback("COOL",  cbCool);
   addCallback("TRN",  cbTransfer);
+  addCallback("AUX",  cbAux);  
+  addCallback("WAST", cbWaste);
   addCallback("MIX",  cbMix);
   addCallback("RST",  cbReset);
   addCallback("TMPC", cbHeater);
@@ -461,7 +521,9 @@ void loop() {
   PRMMotionZ.update(); // Run PRM Y Motion
   PRMCool.update(); // Run PRM Cooling Valve
   PRMTransfer.update(); //Run PRM TransferValve
-  PRMHeater.update();
+  PRMHeater.update(); //Run PRM Heater Controller
+  PRMAux.update(); // Run PRM Aux Valve
+  PRMWaste.update(); // RUN PRM Waste Select Valve
 }
 
 
@@ -542,7 +604,7 @@ void moveToXPosition() {
   switch(xpos) {
     case HOME:
       //Serial3RS485.println("Go Home!");
-      MotorCtrl.send("f1m85h20aE42680aC50au1000n8V30000Z800000R");
+      MotorCtrl.send("f1m40h15aE12500V36000Z180000R");
       //Send command to home
       break;
     case POSITION1:
@@ -612,6 +674,27 @@ void transferoff() {
   // Turn transfer valve off
   digitalWrite(tranPin,LOW);
 }
+
+void auxon() {
+  // Turn transfer valve on
+  digitalWrite(auxPin,HIGH);
+}
+
+void auxoff() {
+  // Turn transfer valve off
+  digitalWrite(auxPin,LOW);
+}
+
+void wasteon() {
+  // Turn transfer valve on
+  digitalWrite(wastePin,LOW);
+}
+
+void wasteoff() {
+  // Turn transfer valve off
+  digitalWrite(wastePin,HIGH);
+}
+
 
 void coolon() {
   // Turn Cool valve on
