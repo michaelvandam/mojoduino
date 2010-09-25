@@ -604,7 +604,9 @@ void moveToXPosition() {
   switch(xpos) {
     case HOME:
       //Serial3RS485.println("Go Home!");
-      MotorCtrl.send("f1m40h15aE12500V36000Z180000R");
+      //MotorCtrl.send("f1m85h20aE42680aC50au1000n8V30000Z800000R");
+      MotorCtrl.send("f1m85h20aE42680aC50au1000n8V30000Z800000R");
+      //MotorCtrl.send("f1m40h15aE12500V30000Z180000R");
       //Send command to home
       break;
     case POSITION1:
