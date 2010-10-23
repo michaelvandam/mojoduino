@@ -53,6 +53,10 @@ int I2CValve::getPosition(){
 }
 
 void I2CValve::setPosition(int position){          
+    Serial.println();
+    Serial.print("Set Position:");
+    Serial.println(position);
+            
     Wire.beginTransmission(address);
     Wire.send(CPOS);
     Wire.send(position);

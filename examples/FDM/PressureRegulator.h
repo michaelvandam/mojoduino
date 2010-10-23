@@ -3,7 +3,6 @@
 
 #ifndef PRESSREG_h
 #define PRESSREG_h
-#endif
 
 #include "MultiDAC.h"
 
@@ -25,23 +24,25 @@ enum {  AP0,
         AP12,
         AP13,
         AP14,
-        AP15
+        AP15,
+        APMAX
     };
 
-class PressureRegulator{
+class PressureRegulators{
   public:
-    PressureRegulator(); 				
+    PressureRegulators(); 				
     void setValue(char output, unsigned int value);
     
   private:
     MultiDAC DAC1;
     MultiDAC DAC2;
-    struct Pin {
-        *MultiDAC multidac;
+    struct Pin{
+        MultiDAC *multidac;
         char outputpin;
     };
     
     Pin pins[16];
+    void initPin( Pin pin, MultiDAC *dac, char outputpin);
     
 };
 

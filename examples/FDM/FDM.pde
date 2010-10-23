@@ -6,8 +6,10 @@
 #include <mojo.h> 
 #include "HardwareSerialRS485.h"
 #include "I2CValve.h"
+#include "MultiDAC.h"
 #include "AMComm.h"  // AllMotion communication control library
-//#define DEBUGMTR
+
+#define DEBUGMTR
 /*
 * FDM Parameters
 */
@@ -23,35 +25,55 @@ const char MAX[] PROGMEM = "MAX";
 const char MOV[]  PROGMEM = "MOVE";
 const char POS[]  PROGMEM = "POS";
 const char WAIT[] PROGMEM = "WAIT";
+const char NONERESP[] PROGMEM = "NONE";
+
 
 const long MOTORCTRLTIMEOUT = 10000;
 const unsigned long MAXPOSX = 168000;
 const unsigned long MAXPOSY = 380000;
 const int MAXVALVEPOS = 6;
 
+/*** Rotary Valve Setup ***/
 I2CValve valve = I2CValve (0x07,10);
+/*** DAC Setup ***/
+MultiDAC DAC1; //MultiDAC(0x41);
+MultiDAC DAC2; //MultiDAC(0x51);
+MultiDAC *DACs[2] = {&DAC1, &DAC2};
 
 boolean HOMEX = true;
 boolean HOMEY = true;
 
 int ledPin = 13;
-int upPin = 35;
-int downPin = 37;
-int upSensorPin = 57;
+int upPin = 45;
+int downPin = 47;
+int upSensorPin = 55;
 int downSensorPin = 54;
-int airValve1 = 33;
-int airValve2 = 31;
-int airValve3 = 29;
-int airValve4 = 27;
+int ventPin = 43;
+int vacPin = 6;
+int airValve1 = 23;
+int airValve2 = 25;
+int airValve3 = 27;
+int airValve4 = 29;
+int airValve5 = 31;
+int airValve6 = 33;
+int airValve7 = 35;
+int airValve8 = 37;
+int vacValve1 = 49;
+int vacValve2 = 51;
+int vacValve3 = 53;
+
+
 
 unsigned long xpos = 0;
 unsigned long ypos = 0;
 char syringecmd[64];
+int selectedVacValve = 0;
+int vacSpeed=0;
 enum ZPosition {UP, DOWN, ZERROR};
 ZPosition zpos = UP;
 
-AMComm MotorCtrlX = AMComm(Serial3RS485, '1'); //Device at address '1'
-AMComm MotorCtrlY = AMComm(Serial3RS485, '2');  //Device at address '2'
+AMComm MotorCtrlX = AMComm(Serial3RS485, '2'); //Device at address '2'
+AMComm MotorCtrlY = AMComm(Serial3RS485, '1');  //Device at address '1'
 AMComm SyringeCtrl = AMComm(Serial2RS485, '1');  //Device at address '2'
 
 
@@ -93,10 +115,10 @@ State MotionStandby = State(motionstandby);
 /* 
 * Create FDM FSMs
 */
-FSM PRMMotionX = FSM(XStartup);
-FSM PRMMotionY = FSM(YStartup);
-FSM PRMMotionZ = FSM(ZStartup);
-FSM Syringe = FSM(SyringeStartup);
+FSM PRMMotionX = FSM(XStartup);//XStartup);
+FSM PRMMotionY = FSM(YStartup);//YStartup);
+FSM PRMMotionZ = FSM(MotionStandby);//ZStartup);
+FSM Syringe = FSM(MotionStandby);//SyringeStartup);
 
 /*
 * Parsing Functions
@@ -293,6 +315,70 @@ void cbValvePosition( Command &cmd ){
 }
 
 
+void cbVacValve( Command &cmd  ) {
+  char *param = cmd.getParam();
+  char *cmdstr = cmd.getCmd();
+  int vacValve=-1;
+  digitalWrite(vacValve1,LOW);
+  digitalWrite(vacValve2,LOW);
+  digitalWrite(vacValve3,LOW);
+  cmd.setReply(param);  
+  if (isPSTR(param,NONERESP)) {
+        selectedVacValve = 0;
+  } else {
+      
+      switch (param[0]) {
+        case '1':
+          digitalWrite(vacValve1,HIGH);
+          digitalWrite(vacValve2,LOW);
+          digitalWrite(vacValve3,LOW);  
+          selectedVacValve = 1;
+          break;
+        case '2':
+          digitalWrite(vacValve1,LOW);
+          digitalWrite(vacValve2,HIGH);
+          digitalWrite(vacValve3,LOW);  
+          selectedVacValve = 2;
+          break;
+        case '3':
+          digitalWrite(vacValve1,LOW);
+          digitalWrite(vacValve2,LOW);
+          digitalWrite(vacValve3,HIGH);  
+          selectedVacValve = 3;
+          break;
+        default:
+          selectedVacValve = 0;
+          cmd.setReply_P(BADPARAM);
+          break;
+       }
+       Serial.println();
+       Serial.print("SetValve:");
+       Serial.println(selectedVacValve);
+  }  
+}
+ 
+//Mix Callbacks
+void cbVac( Command &cmd ) {
+  char *param = cmd.getParam();
+  if (isEmpty(param)) { 
+    if(digitalRead(vacPin)==HIGH) {
+      cmd.setReply_P(ONRESP);
+    } else {
+      cmd.setReply_P(OFFRESP);
+    }
+  } else {
+     if (isPSTR(param,ONRESP)) {
+       digitalWrite(vacPin, HIGH);       
+     } else if (isPSTR(param,OFFRESP)){ 
+       digitalWrite(vacPin, LOW);
+     cmd.setReply(param);
+     } else {
+        cmd.setReply_P(BADPARAM);     
+     }
+   }
+}
+ 
+  
 void cbAirValve( Command &cmd  ) {
   char *param = cmd.getParam();
   char *cmdstr = cmd.getCmd();
@@ -311,8 +397,21 @@ void cbAirValve( Command &cmd  ) {
     case '4':
       selectedValve = airValve4;
       break;
+    case '5':
+      selectedValve = airValve5;
+      break;
+    case '6':
+      selectedValve = airValve6;
+      break;
+    case '7':
+      selectedValve = airValve7;
+      break;
+    case '8':
+      selectedValve = airValve8;
+      break;
     default:
       break;
+
   }
   
   if (isEmpty(param)) {
@@ -334,6 +433,7 @@ void cbAirValve( Command &cmd  ) {
   }
 }
 
+
 void cbReset( Command &cmd ) {
     MotorCtrlX.send("T");
     //Serial.println("Terminate active commands");  
@@ -354,6 +454,45 @@ void cbReset( Command &cmd ) {
       cmd.setReply_P(ZERR);    
     }
    
+}
+
+void cbDacValue( Command &cmd  ) {
+  char *param = cmd.getParam();
+  char *cmdstr = cmd.getCmd();
+  int selectedDAC;
+  int selectedPin;
+  long val;
+  char * splitpos;
+  
+  selectedDAC = atoi(&cmdstr[3]);
+  if (isEmpty(param)) {
+        Serial.println();
+        Serial.print("Selected DAC:");
+        Serial.print(cmdstr);
+        Serial.println(selectedDAC);
+  } else {
+        selectedPin = param[0]-'0';
+        if (selectedPin < MAX_OUT) {
+          splitpos = strchr(param,',');
+          Serial.println();
+          Serial.print("Selected DAC:");Serial.println(selectedDAC);
+          Serial.print("Selected Pin:");Serial.println(selectedPin);
+          val = atol(splitpos+1);
+          if (val < MAX_VAL && val > 0) {
+            Serial.print("Value:");Serial.println(val);               
+            DACs[selectedDAC]->outputs[selectedPin].setValue((unsigned int)val);
+            cmd.setReply(param);  
+          } else {
+            cmd.setReply_P(BADPARAM);
+          }
+          
+
+          
+ 
+        } else {
+          cmd.setReply_P(BADPARAM);
+        }        
+  }
 }
 
 
@@ -380,7 +519,16 @@ void setup()
   addCallback("AV2", cbAirValve);
   addCallback("AV3", cbAirValve);
   addCallback("AV4", cbAirValve);   
-
+  addCallback("AV5", cbAirValve);   
+  addCallback("AV6", cbAirValve);   
+  addCallback("AV7", cbAirValve);   
+  addCallback("AV8", cbAirValve);   
+  addCallback("DAC0", cbDacValue);   
+  addCallback("DAC1", cbDacValue);
+  addCallback("VACV",cbVacValve);
+  addCallback("VAC", cbVac);  
+  
+  
   /*** ATTACH DEFAULT CALLBACKS ***/
   setupDefaultCallbacks(); 
   
@@ -390,23 +538,24 @@ void setup()
   /*** SETUP COMMUNICATION ***/
   Wire.begin();   //Start Wire library as I2C Master 
   TWBR = ((F_CPU / 32000l) - 16) / 2;
-    /*** Turn off Pullup Resistors ***/
-  
+
+/*** //Turn off Pullup Resistors
   pinMode(20,INPUT);
   digitalWrite(20,LOW);
   pinMode(21,INPUT);
   digitalWrite(21,LOW);
-  
+***/  
   Serial3RS485.begin(9600);
   Serial3RS485.setControlPin(3);
   Serial2RS485.begin(38400);
   Serial2RS485.setControlPin(2);
   
-  
+  DAC1 = MultiDAC(0x41);
+  DAC2 = MultiDAC(0x51);
   MotorCtrlX.setTimeout(MOTORCTRLTIMEOUT);  //Set timeout to 5sec
   MotorCtrlY.setTimeout(MOTORCTRLTIMEOUT);  //Set timeout to 5sec
   
-  for(int i=23; i<53;i=i+2) {
+  for(int i=23; i<=53;i=i+2) {
     pinMode(i,OUTPUT);
     digitalWrite(i,LOW);
   }
@@ -655,7 +804,7 @@ void moveToZPosition() {
 
 void initialX() {
   HOMEX = true;
-  MotorCtrlX.send("f1m45h15aE12500L400n8V38000R");
+  MotorCtrlX.send("f1m100h15aE12500L150V38000z0Z180000R");
   delay(500);
   MotorCtrlX.receiveMessage();
   PRMMotionX.transitionTo(XMoving);  
@@ -663,7 +812,7 @@ void initialX() {
 
 void initialY() {
   HOMEY = true;
-  MotorCtrlY.send("f1m35h15aE12500n8L400V38000R");
+  MotorCtrlY.send("f1m35h15aE12500L200V38000z0Z400000R");
   delay(500);
   MotorCtrlY.receiveMessage();
   PRMMotionY.transitionTo(YMoving);  
@@ -673,9 +822,9 @@ void initialZ() {
   
   zpos = UP;
   PRMMotionZ.immediateTransitionTo(ZMoving);
-  while(!upSensor.isPressed()){
+  /*while(!upSensor.isPressed()){
     continue;
-  }
+  }*/
 }
 
 
