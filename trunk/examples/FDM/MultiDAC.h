@@ -23,10 +23,10 @@ Analog Pin Addresses
 
 #ifndef MultiDAC_h
 #define MultiDAC_h
-#endif
 
 #define WRITE_PWR  0x02
 #define MAX_OUT    0x08
+#define MAX_VAL    65536
 
 class Output{
   public:
@@ -59,4 +59,5 @@ class MultiDAC{
     unsigned int  value; 
 };
 
+#endif
 

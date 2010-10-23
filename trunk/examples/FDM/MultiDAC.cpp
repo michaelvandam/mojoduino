@@ -43,14 +43,15 @@ char Output::getAddress(){
 }			
 
 void Output::setValue(unsigned int value){
-   int highbyte = value>>8;
-   int lowbyte  = value;
+      int highbyte = value>>8;
+      int lowbyte  = value;
+      
       Wire.beginTransmission(DACaddress);
-      Wire.send((WRITE_PWR<<4) | (pinaddress));
-      //00020000
+      Wire.send((WRITE_PWR<<4) | (pinaddress));      //00020000
       Wire.send(highbyte);
       Wire.send(lowbyte);
       Wire.endTransmission();    
+      
  }
 
 
